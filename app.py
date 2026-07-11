@@ -3,19 +3,136 @@ app.py  –  Átomos Perdidos: El Constructor de Moléculas
 Servidor Flask: toda la lógica y generación de HTML ocurre aquí en Python.
 """
 
-from flask import Flask, session, request, jsonify, render_template_string
-import json, uuid
+from flask import Flask, session, request, jsonify, redirect
+import json, random
+from collections import Counter
 
 from periodic_table import ELEMENTS, ELEMENT_POSITIONS, CATEGORY_COLORS, CATEGORY_LABELS
 from molecules import GameSession, MOLECULES, LEVEL_LABELS, get_molecule_by_id
 from svg_molecules import get_svg
 
+# ── Módulos nuevos (v2) ──
+import octeto
+import missions
+import reactions
+import achievements as logros_mod
+import views_nuevas
+from molecule_3d import get_xyz, xyz_from_sandbox
+from svg_molecules import ATOM_COLORS
+from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
+                       build_octeto_html, build_mol3d_modal_html,
+                       build_pending_toasts_js, build_page)
+
 app = Flask(__name__)
+# Clave fija SOLO para desarrollo (la sesión guarda progreso, no datos sensibles)
 app.secret_key = "atomos_perdidos_secret_2025"
+
+# La historia se registra como pseudo-nivel: reutiliza TODO el motor del juego
+MOLECULES["story"] = missions.obtener_moleculas_historia()
+LEVEL_LABELS["story"] = "📖 Historia"
+
+MAX_GALERIA = 30  # tope de entradas en sesión para no inflar la cookie
+
+
+# ─────────────────────────────────────────────
+# HELPERS DE SESIÓN: galería, logros, fórmula
+# ─────────────────────────────────────────────
+
+def _subindices(n: int) -> str:
+    """Convierte 12 → '₁₂' para las fórmulas químicas."""
+    subs = "₀₁₂₃₄₅₆₇₈₉"
+    return "".join(subs[int(d)] for d in str(n)) if n > 1 else ""
+
+
+# Secuencia convencional para escribir fórmulas (electropositivo primero):
+# da NaCl, H₂O, NH₃, CH₄, H₂SO₄… como se escriben en los libros de texto.
+_SECUENCIA_NO_METALES = ["B", "Si", "C", "Sb", "As", "P", "N", "H",
+                         "Te", "Se", "S", "At", "I", "Br", "Cl", "O", "F"]
+_EN_POR_SIMBOLO = {el["symbol"]: (el["electronegativity"] or 0.0)
+                   for el in ELEMENTS.values()}
+
+
+def calcular_formula(simbolos: list) -> str:
+    """
+    Fórmula empírica con el orden convencional: metales primero (por
+    electronegatividad creciente), luego los no metales en la secuencia
+    química estándar (C antes que H, N antes que H, O casi al final…).
+    """
+    conteo = Counter(s.strip().capitalize() for s in simbolos if s.strip())
+    metales = sorted((s for s in conteo if s not in _SECUENCIA_NO_METALES),
+                     key=lambda s: (_EN_POR_SIMBOLO.get(s, 0.0), s))
+    no_metales = [s for s in _SECUENCIA_NO_METALES if s in conteo]
+    return "".join(f"{sym}{_subindices(conteo[sym])}"
+                   for sym in metales + no_metales)
+
+
+def _agregar_a_galeria(entrada: dict):
+    """Añade una entrada a la galería en sesión (con tope de tamaño)."""
+    galeria = session.get("gallery", [])
+    # Los desafíos no se duplican; el sandbox puede repetir fórmula
+    if entrada["tipo"] == "desafio" and any(
+            g.get("tipo") == "desafio" and g.get("id") == entrada.get("id")
+            for g in galeria):
+        return
+    galeria.append(entrada)
+    session["gallery"] = galeria[-MAX_GALERIA:]
+    session.modified = True
+
+
+def _desbloquear_logros(evento: dict) -> list:
+    """Comprueba logros, los persiste y devuelve los toasts nuevos."""
+    desbloqueados = session.get("achievements", [])
+    nuevos = logros_mod.comprobar_logros(desbloqueados, session.get("gallery", []), evento)
+    if nuevos:
+        session["achievements"] = desbloqueados + nuevos
+        session["pending_toasts"] = session.get("pending_toasts", []) + [
+            logros_mod.texto_toast(l) for l in nuevos]
+        session.modified = True
+    return [logros_mod.texto_toast(l) for l in nuevos]
+
+
+def _sacar_toasts_pendientes() -> list:
+    """Extrae (y limpia) los toasts pendientes de la sesión."""
+    toasts = session.pop("pending_toasts", [])
+    if toasts:
+        session.modified = True
+    return toasts
 
 # ─────────────────────────────────────────────
 # GENERADOR DE HTML  (Python genera todo el HTML)
 # ─────────────────────────────────────────────
+
+# CSS extra de la página de juego (v2): tooltip de la tabla, animación de
+# encaje, diálogo de historia y botón 3D. Va en string aparte para no pelear
+# con las llaves del f-string de la plantilla.
+EXTRA_GAME_CSS = """
+/* Tooltip de elemento: nombre + valencia */
+.element::after{content:attr(data-name) " · valencia " attr(data-valence);position:absolute;
+bottom:105%;left:50%;transform:translateX(-50%);background:#0a0a1a;border:1px solid var(--accent);
+color:var(--text);padding:3px 8px;border-radius:6px;font-size:9px;white-space:nowrap;opacity:0;
+pointer-events:none;transition:opacity .15s;z-index:30}
+.element:hover::after{opacity:1}
+.element.empty::after{display:none}
+/* Animación de "encaje" cuando un hueco se llena */
+.atom-slot.filled{animation:encaje .4s cubic-bezier(.3,1.6,.5,1)}
+@keyframes encaje{0%{transform:scale(1.45);box-shadow:0 0 0 10px rgba(79,209,197,.35)}
+60%{transform:scale(.9)}100%{transform:scale(1);box-shadow:none}}
+/* Diálogo de la misión narrativa */
+.story-dialog{background:#241a10;border:1px solid #6a4a1a;border-radius:12px;padding:14px 16px;
+margin-bottom:14px;font-size:.85rem;line-height:1.6;color:#e8d8b8}
+.story-dialog-title{color:var(--warn);font-weight:bold;font-size:.75rem;text-transform:uppercase;
+letter-spacing:2px;margin-bottom:8px}
+/* Botón Ver en 3D */
+.btn-3d{padding:10px 22px;background:linear-gradient(135deg,#2a3a5a,#1a2a4a);border:1px solid #3a5a8a;
+border-radius:10px;color:#a8c8f8;font-weight:bold;cursor:pointer;font-family:monospace;font-size:.9rem;
+transition:all .2s}
+.btn-3d:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(58,90,138,.5)}
+/* Enlaces de navegación del header */
+.header-nav{display:flex;gap:6px;flex-wrap:wrap}
+.header-nav a{color:var(--muted);text-decoration:none;font-size:.7rem;padding:4px 8px;
+border:1px solid var(--border);border-radius:6px}
+.header-nav a:hover{color:var(--accent2);border-color:var(--accent2)}
+"""
 
 def build_periodic_table_html():
     """Genera el HTML de la tabla periódica completa desde Python."""
@@ -126,6 +243,31 @@ def render_game_page(level: str, mol_index: int, score: int,
             hints_list_html += f"<li>💡 Pista {idx+1}: {h}</li>"
         hints_list_html += "</ul>"
 
+    # ── Mensaje contextual de Octeto 🐙 ──
+    if completed:
+        octeto_msg = octeto.get_octeto_message("molecula_completa")
+    elif feedback and "Incorrecto" in feedback:
+        octeto_msg = octeto.get_octeto_message("elemento_incorrecto")
+    elif used_hints:
+        octeto_msg = octeto.get_octeto_message(
+            "pista_usada", {"numero": len(used_hints), "pista": used_hints[-1]})
+    elif filled:
+        octeto_msg = octeto.get_octeto_message("elemento_colocado")
+    else:
+        octeto_msg = octeto.get_octeto_message("bienvenida")
+
+    # ── Diálogo de la historia (solo en el pseudo-nivel "story") ──
+    story_html = ""
+    if level == "story":
+        dialogo = missions.obtener_dialogo(mol_index)
+        if dialogo:
+            story_html = (
+                '<div class="story-dialog">'
+                f'<div class="story-dialog-title">📖 {missions.MISSION["titulo"]} '
+                f'— capítulo {mol_index + 1}/{total}</div>'
+                f'<p>{dialogo}</p></div>'
+            )
+
     # Botón de pista
     hint_btn = (
         f'<button class="btn-hint" onclick="requestHint()" '
@@ -134,13 +276,19 @@ def render_game_page(level: str, mol_index: int, score: int,
         if not completed else ""
     )
 
-    # SVG de la molécula (solo si completada)
+    # SVG de la molécula (solo si completada) + botón para verla en 3D
     svg_section = ""
+    mol_xyz = ""
     if completed:
         svg_content = get_svg(mol["svg_key"])
+        mol_xyz = get_xyz(mol["svg_key"], mol["atoms"], mol["name"])
+        btn_3d = ('<button class="btn-3d" onclick=\'openMol3D(MOL_XYZ, '
+                  + json.dumps(f"{mol['name']} ({mol['id']})", ensure_ascii=False)
+                  + ')\'>🔭 Ver en 3D</button>') if mol_xyz else ""
         svg_section = f"""
         <div class="completed-section">
             <div class="molecule-svg">{svg_content}</div>
+            {btn_3d}
             <div class="fun-fact">
                 <h3>🔬 {mol['name']} ({mol['formula']})</h3>
                 <p>{mol['fun_fact']}</p>
@@ -196,6 +344,11 @@ def render_game_page(level: str, mol_index: int, score: int,
         "molId": mol["id"],
     })
 
+    # Widgets v2: Octeto, modal 3D y toasts de logros pendientes
+    octeto_widget = build_octeto_html(octeto_msg)
+    modal_3d_html = build_mol3d_modal_html()
+    toasts_js = build_pending_toasts_js(_sacar_toasts_pendientes())
+
     # ── Plantilla HTML completa ───────────────
     html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -203,6 +356,8 @@ def render_game_page(level: str, mol_index: int, score: int,
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Átomos Perdidos 🔬</title>
+{CDN_CONFETTI}
+{CDN_3DMOL}
 <style>
 /* ── Variables y reset ── */
 :root {{
@@ -298,6 +453,8 @@ body{{background:var(--bg);color:var(--text);font-family:'Courier New',monospace
 ::-webkit-scrollbar{{width:6px;height:6px}}
 ::-webkit-scrollbar-track{{background:var(--bg)}}
 ::-webkit-scrollbar-thumb{{background:var(--border);border-radius:3px}}
+{EXTRA_GAME_CSS}
+{WIDGETS_CSS}
 </style>
 </head>
 <body>
@@ -311,13 +468,19 @@ body{{background:var(--bg);color:var(--text);font-family:'Courier New',monospace
     <span>Nivel: <b style="color:var(--accent)">{LEVEL_LABELS.get(level,'')}</b></span>
     <span>Molécula: <b>{mol_index+1}/{total}</b></span>
     <span class="score-badge">🏆 {score} pts</span>
-    <button onclick="location.href='/'" style="background:var(--card);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:monospace;font-size:.8rem">🏠 Inicio</button>
+    <div class="header-nav">
+      <a href="/">🏠 Inicio</a>
+      <a href="/sandbox">🧪 Sandbox</a>
+      <a href="/reactions">⚗️ Reacciones</a>
+      <a href="/gallery">🖼️ Galería</a>
+    </div>
   </div>
 </div>
 
 <div class="main">
   <!-- Molécula incompleta -->
   <div class="mol-section">
+    {story_html}
     <div class="mol-title">Completa la molécula</div>
     <div class="mol-formula">{mol['formula']}</div>
     {atoms_html}
@@ -343,9 +506,17 @@ body{{background:var(--bg);color:var(--text);font-family:'Courier New',monospace
   </div>
 </div>
 
+{octeto_widget}
+{modal_3d_html}
+
 <script>
+{SHARED_JS}
+{MOL3D_JS}
+{toasts_js}
+
 // ── Estado del juego (generado por Python, consumido por JS) ──
 const GAME = {game_data};
+const MOL_XYZ = {json.dumps(mol_xyz)};
 
 let selectedElement = null;
 let activeSlot = null;
@@ -401,6 +572,7 @@ function clearSlot(slotIdx) {{
 // ── Colocar elemento en hueco ──
 function placeElement() {{
   if (!selectedElement || activeSlot === null) return;
+  playPop();   // sonidito de colocación (Web Audio, sin archivos)
   fetch('/place_element', {{
     method: 'POST',
     headers: {{'Content-Type':'application/json'}},
@@ -445,6 +617,11 @@ document.addEventListener('DOMContentLoaded', () => {{
     activeSlot = empty[0];
     if (selectedElement) document.getElementById('btn-place').disabled = false;
   }}
+  // Celebración al cargar la página con la molécula recién completada
+  if (GAME.completed) {{
+    fireConfetti();
+    try {{ playFanfare(); }} catch(e) {{}}
+  }}
 }});
 </script>
 </body>
@@ -452,37 +629,36 @@ document.addEventListener('DOMContentLoaded', () => {{
     return html
 
 
-def render_home():
-    """Página de inicio generada por Python."""
-    return """<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Átomos Perdidos 🔬</title>
-<style>
-:root{--bg:#0d0d1a;--surface:#151528;--card:#1e1e38;--border:#2e2e55;--accent:#7c6af7;--accent2:#4fd1c5;--text:#e8e8f0;--muted:#8888aa}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
-.hero{text-align:center;margin-bottom:40px}
+HOME_CSS = """
+.hero{text-align:center;margin:30px 0 34px}
 .title{font-size:3rem;font-weight:bold;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2}
-.subtitle{color:var(--muted);font-size:1rem;margin-top:10px;max-width:500px}
+.subtitle{color:var(--muted);font-size:1rem;margin:10px auto 0;max-width:520px}
 .levels{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
-.level-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 36px;text-align:center;cursor:pointer;transition:all .3s;text-decoration:none;color:var(--text);min-width:200px}
+.level-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:26px 34px;text-align:center;cursor:pointer;transition:all .3s;text-decoration:none;color:var(--text);min-width:190px}
 .level-card:hover{transform:translateY(-6px);border-color:var(--accent);box-shadow:0 8px 30px rgba(124,106,247,.25)}
-.level-icon{font-size:3rem;margin-bottom:12px}
-.level-name{font-size:1.4rem;font-weight:bold;margin-bottom:8px}
-.level-desc{font-size:.8rem;color:var(--muted);line-height:1.5}
+.level-icon{font-size:2.6rem;margin-bottom:10px}
+.level-name{font-size:1.3rem;font-weight:bold;margin-bottom:8px}
+.level-desc{font-size:.78rem;color:var(--muted);line-height:1.5}
 .easy-card .level-name{color:#4ade80}
 .medium-card .level-name{color:#fbbf24}
 .hard-card .level-name{color:#f87171}
-.footer{margin-top:40px;color:var(--muted);font-size:.75rem;text-align:center}
+.modes-title{text-align:center;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:3px;margin:36px 0 16px}
+.modes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.mode-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 24px;text-align:center;text-decoration:none;color:var(--text);min-width:160px;transition:all .25s}
+.mode-card:hover{transform:translateY(-4px);border-color:var(--accent2)}
+.mode-icon{font-size:2rem;margin-bottom:8px}
+.mode-name{font-weight:bold;font-size:.95rem;margin-bottom:5px;color:var(--accent2)}
+.mode-desc{font-size:.7rem;color:var(--muted);line-height:1.4}
+.footer{margin:40px 0 60px;color:var(--muted);font-size:.75rem;text-align:center}
 .atoms-bg{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:-1}
 .float-atom{position:absolute;border-radius:50%;opacity:.06;animation:float linear infinite}
 @keyframes float{0%{transform:translateY(100vh) rotate(0deg)}100%{transform:translateY(-200px) rotate(360deg)}}
-</style>
-</head>
-<body>
+"""
+
+
+def render_home():
+    """Página de inicio: niveles clásicos + los modos nuevos."""
+    body = """
 <div class="atoms-bg">
   <div class="float-atom" style="width:60px;height:60px;background:#7c6af7;left:10%;animation-duration:15s;animation-delay:0s"></div>
   <div class="float-atom" style="width:40px;height:40px;background:#4fd1c5;left:30%;animation-duration:20s;animation-delay:3s"></div>
@@ -511,12 +687,62 @@ body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;
     <div class="level-desc">H₂SO₄, C₂H₅OH, CaCO₃...<br>Faltan 2–3 átomos</div>
   </a>
 </div>
-<div class="footer">
-  <p>118 elementos · Configuraciones electrónicas completas · 20 moléculas</p>
-  <p style="margin-top:4px">Motor: Python + Flask · Tabla periódica generada dinámicamente</p>
+
+<div class="modes-title">— Nuevos modos de juego —</div>
+<div class="modes">
+  <a href="/sandbox" class="mode-card">
+    <div class="mode-icon">🧪</div>
+    <div class="mode-name">Sandbox</div>
+    <div class="mode-desc">Construye cualquier molécula<br>sin reglas ni límites</div>
+  </a>
+  <a href="/reactions" class="mode-card">
+    <div class="mode-icon">⚗️</div>
+    <div class="mode-name">Reacciones</div>
+    <div class="mode-desc">Ordena los pasos de<br>reacciones químicas reales</div>
+  </a>
+  <a href="/story" class="mode-card">
+    <div class="mode-icon">📖</div>
+    <div class="mode-name">Historia</div>
+    <div class="mode-desc">Ayuda al alquimista a<br>crear el Elixir de la Vida</div>
+  </a>
+  <a href="/gallery" class="mode-card">
+    <div class="mode-icon">🖼️</div>
+    <div class="mode-name">Galería</div>
+    <div class="mode-desc">Tu colección de<br>moléculas completadas</div>
+  </a>
+  <a href="/achievements" class="mode-card">
+    <div class="mode-icon">🏅</div>
+    <div class="mode-name">Logros</div>
+    <div class="mode-desc">Tus medallas de<br>química de campeonato</div>
+  </a>
 </div>
-</body>
-</html>"""
+
+<div class="footer">
+  <p>118 elementos · Configuraciones electrónicas completas · 63 moléculas</p>
+  <p style="margin-top:4px">Motor: Python + Flask · Todo el HTML generado dinámicamente desde Python</p>
+</div>
+"""
+    return build_page(
+        title="Átomos Perdidos 🔬",
+        body=body, active_nav="/",
+        octeto_msg=octeto.get_octeto_message("bienvenida"),
+        extra_css=HOME_CSS,
+        pending_toasts=_sacar_toasts_pendientes(),
+    )
+
+
+FINISHED_CSS = """
+.fin-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px;
+text-align:center;max-width:540px;width:100%;margin:40px auto}
+.big-stars{font-size:3rem;margin-bottom:16px}
+.fin-card h1{font-size:2rem;background:linear-gradient(135deg,var(--accent),var(--accent2));
+-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.fin-score{font-size:3rem;font-weight:bold;color:var(--accent2);margin:20px 0}
+.fin-sub{color:var(--muted);font-size:.9rem;margin-bottom:28px}
+.fin-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.fin-final{background:#1a2a0a;border:1px solid #2a4a1a;border-radius:12px;padding:16px;
+color:#c8e8a8;font-size:.85rem;line-height:1.6;text-align:left;margin-bottom:22px}
+"""
 
 
 def render_finished_page(level: str, score: int):
@@ -524,40 +750,35 @@ def render_finished_page(level: str, score: int):
     max_score = total * 10
     pct = int(score / max_score * 100) if max_score else 0
     stars = "⭐" * (1 + (pct >= 50) + (pct >= 80) + (pct >= 100))
-    return f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>¡Completado! — Átomos Perdidos</title>
-<style>
-:root{{--bg:#0d0d1a;--card:#1e1e38;--border:#2e2e55;--accent:#7c6af7;--accent2:#4fd1c5;--text:#e8e8f0;--muted:#8888aa}}
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}}
-.card{{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px;text-align:center;max-width:500px;width:100%}}
-.big-stars{{font-size:3rem;margin-bottom:16px}}
-h1{{font-size:2rem;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}}
-.score{{font-size:3rem;font-weight:bold;color:var(--accent2);margin:20px 0}}
-.sub{{color:var(--muted);font-size:.9rem;margin-bottom:28px}}
-.btns{{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}}
-a.btn{{padding:12px 24px;border-radius:10px;text-decoration:none;font-family:monospace;font-weight:bold;font-size:.95rem;transition:all .2s}}
-a.btn:hover{{transform:translateY(-2px)}}
-.btn-retry{{background:var(--accent);color:#fff}}
-.btn-home{{background:var(--card);border:1px solid var(--border);color:var(--text)}}
-</style>
-</head>
-<body>
-<div class="card">
+
+    # Epílogo si es el final de la misión narrativa
+    final_html = ""
+    titulo = "¡Nivel completado!"
+    if level == "story":
+        titulo = "¡Misión cumplida!"
+        final_html = f'<div class="fin-final">{missions.MISSION["final"]}</div>'
+
+    body = f"""
+<div class="fin-card">
   <div class="big-stars">{stars}</div>
-  <h1>¡Nivel completado!</h1>
-  <div class="score">{score} pts</div>
-  <div class="sub">Nivel {LEVEL_LABELS.get(level,'')} — {total} moléculas — Máximo posible: {max_score} pts<br>Puntuación: {pct}%</div>
-  <div class="btns">
-    <a href="/game/{level}" class="btn btn-retry">🔁 Repetir nivel</a>
-    <a href="/" class="btn btn-home">🏠 Inicio</a>
+  <h1>{titulo}</h1>
+  <div class="fin-score">{score} pts</div>
+  <div class="fin-sub">Nivel {LEVEL_LABELS.get(level,'')} — {total} moléculas — Máximo posible: {max_score} pts<br>Puntuación: {pct}%</div>
+  {final_html}
+  <div class="fin-btns">
+    <a href="/game/{level}" class="btn btn-primary">🔁 Repetir nivel</a>
+    <a href="/gallery" class="btn btn-teal">🖼️ Ver galería</a>
+    <a href="/" class="btn btn-ghost">🏠 Inicio</a>
   </div>
 </div>
-</body>
-</html>"""
+"""
+    return build_page(
+        title="¡Completado! — Átomos Perdidos",
+        body=body, octeto_msg=octeto.get_octeto_message("nivel_completado"),
+        extra_css=FINISHED_CSS,
+        extra_js="document.addEventListener('DOMContentLoaded',()=>{fireConfetti();try{playFanfare()}catch(e){}});",
+        pending_toasts=_sacar_toasts_pendientes(),
+    )
 
 
 # ─────────────────────────────────────────────
@@ -578,7 +799,6 @@ def game(level):
     session[f"score_{level}"]     = 0
     session[f"hints_{level}_0"]   = []
     session[f"filled_{level}_0"]  = {}
-    from flask import redirect
     return redirect(f"/game/{level}/play")
 
 
@@ -615,6 +835,10 @@ def place_element():
             points = max(10 - hints_used * 3, 1)
             session[score_key] = session.get(score_key, 0) + points
             session.modified = True
+            # v2: registrar en la galería y comprobar logros
+            _agregar_a_galeria({"tipo": "desafio", "id": mol["id"]})
+            _desbloquear_logros({"molecula_completada": True,
+                                 "hints_usados": hints_used})
             return jsonify({"reload": True, "completed": True})
         return jsonify({"reload": True})
     else:
@@ -723,6 +947,231 @@ def play(level):
 
 
 
+
+
+# ─────────────────────────────────────────────
+# RUTAS NUEVAS v2: SANDBOX
+# ─────────────────────────────────────────────
+
+@app.route("/sandbox")
+def sandbox():
+    """Modo libertad creativa: construir cualquier molécula."""
+    return views_nuevas.render_sandbox_page(
+        octeto_msg=octeto.get_octeto_message("sandbox_libertad"),
+        frases_valencia=[octeto.get_octeto_message("sandbox_sin_valencia")
+                         for _ in range(2)],
+        colores_atomos=ATOM_COLORS,
+    )
+
+
+@app.route("/sandbox/formula", methods=["POST"])
+def sandbox_formula():
+    """Calcula la fórmula empírica de los átomos colocados en el lienzo."""
+    data = request.get_json() or {}
+    simbolos = data.get("simbolos", [])
+    if not simbolos:
+        return jsonify({"formula": "", "mensaje": "🐙 No hay átomos que contar."})
+    formula = calcular_formula(simbolos)
+    # ¿Coincide con alguna molécula conocida del juego? Octeto lo celebra.
+    conocida = None
+    for level_mols in MOLECULES.values():
+        for m in level_mols:
+            if calcular_formula(m["atoms"]) == formula:
+                conocida = m
+                break
+        if conocida:
+            break
+    if conocida:
+        mensaje = (f"🐙 ¡Eso es {conocida['name']} ({conocida['formula']})! "
+                   f"La reconocería con los ocho ojos cerrados.")
+    else:
+        mensaje = f"🐙 Fórmula calculada: {formula}. No la tengo en mis apuntes… ¡química de vanguardia!"
+    return jsonify({"formula": formula, "mensaje": mensaje})
+
+
+@app.route("/sandbox/save", methods=["POST"])
+def sandbox_save():
+    """Guarda la creación del sandbox en la galería (sesión)."""
+    data = request.get_json() or {}
+    atoms = data.get("atoms", [])[:40]   # tope: la cookie de sesión es finita
+    if not atoms:
+        return jsonify({"ok": False, "mensaje": "🐙 Nada que guardar."})
+    formula = calcular_formula([a["s"] for a in atoms])
+    _agregar_a_galeria({"tipo": "sandbox", "formula": formula, "atoms": atoms})
+    toasts = _desbloquear_logros({})
+    return jsonify({"ok": True, "formula": formula, "toasts": toasts,
+                    "mensaje": f"🐙 ¡{formula} guardada en la galería! Mi vitrina y yo estamos orgullosos."})
+
+
+@app.route("/sandbox/xyz", methods=["POST"])
+def sandbox_xyz():
+    """Convierte los átomos del lienzo 2D a XYZ para el visor 3D."""
+    data = request.get_json() or {}
+    atoms = [{"sym": a["s"], "x": a["x"], "y": a["y"]}
+             for a in data.get("atoms", [])[:60]]
+    return jsonify({"xyz": xyz_from_sandbox(atoms)})
+
+
+# ─────────────────────────────────────────────
+# RUTAS NUEVAS v2: PUZLES DE REACCIÓN
+# ─────────────────────────────────────────────
+
+@app.route("/reactions")
+def reactions_list():
+    """Listado de puzles de reacción."""
+    return views_nuevas.render_reactions_page(
+        lista=reactions.listar_reacciones(),
+        hechas=session.get("reactions_done", []),
+        octeto_msg=octeto.get_octeto_message("reaccion_intro"),
+    )
+
+
+@app.route("/reaction/<reaction_id>")
+def reaction_puzzle(reaction_id):
+    """Puzle individual: los pasos se muestran barajados."""
+    r = reactions.obtener_reaccion(reaction_id)
+    if not r:
+        return "Reacción no encontrada", 404
+    orden = list(range(len(r["pasos"])))
+    random.shuffle(orden)
+    # Evitar que salga ya ordenado por azar
+    if orden == sorted(orden):
+        orden.reverse()
+    pista = f"🐙 Psst… el primer paso es: «{r['pasos'][0]}». No se lo digas a nadie."
+    return views_nuevas.render_reaction_page(
+        reaccion=r, orden_barajado=orden,
+        octeto_msg=octeto.get_octeto_message("reaccion_intro"),
+        pista_octeto=pista,
+    )
+
+
+@app.route("/check_reaction", methods=["POST"])
+def check_reaction():
+    """Valida el orden de pasos + la pregunta; suma puntos si es correcto."""
+    data = request.get_json() or {}
+    resultado = reactions.validar_reaccion(
+        data.get("id", ""), data.get("orden", []), data.get("respuesta", -1))
+    if not resultado.get("ok"):
+        return jsonify({"correcto": False,
+                        "mensaje": "🐙 Esa reacción no está en mis apuntes…",
+                        "mensaje_texto": resultado.get("error", "Error")}), 400
+
+    toasts = []
+    if resultado["correcto"]:
+        hechas = session.get("reactions_done", [])
+        if data["id"] not in hechas:
+            session["reactions_done"] = hechas + [data["id"]]
+            session["score_reactions"] = (session.get("score_reactions", 0)
+                                          + resultado["puntos"])
+            session.modified = True
+        mensaje = octeto.get_octeto_message("reaccion_correcta")
+        texto = f"✅ ¡Correcto! +{resultado['puntos']} puntos."
+    else:
+        mensaje = octeto.get_octeto_message("reaccion_incorrecta")
+        texto = f"❌ {resultado['detalle']}"
+
+    return jsonify({"correcto": resultado["correcto"], "mensaje": mensaje,
+                    "mensaje_texto": texto, "fun_fact": resultado["fun_fact"],
+                    "toasts": toasts})
+
+
+# ─────────────────────────────────────────────
+# RUTAS NUEVAS v2: GALERÍA Y LOGROS
+# ─────────────────────────────────────────────
+
+@app.route("/gallery")
+def gallery():
+    """Galería con las moléculas completadas y las creaciones del sandbox."""
+    entradas = []
+    for g in session.get("gallery", []):
+        if g.get("tipo") == "desafio":
+            m = get_molecule_by_id(g.get("id", ""))
+            if not m:
+                continue
+            entradas.append({
+                "tipo": "desafio", "nombre": m["name"], "formula": m["formula"],
+                "svg": get_svg(m["svg_key"]),
+                "xyz": get_xyz(m["svg_key"], m["atoms"], m["name"]),
+                "fun_fact": m["fun_fact"],
+            })
+        else:  # sandbox
+            atoms = g.get("atoms", [])
+            entradas.append({
+                "tipo": "sandbox",
+                "nombre": "Creación propia",
+                "formula": g.get("formula", "?"),
+                "svg": get_svg(g.get("formula", "?")),   # placeholder con la fórmula
+                "xyz": xyz_from_sandbox([{"sym": a["s"], "x": a["x"], "y": a["y"]}
+                                         for a in atoms]),
+                "fun_fact": "",
+            })
+    tipo_msg = "galeria" if entradas else "galeria_vacia"
+    return views_nuevas.render_gallery_page(
+        entradas=entradas,
+        octeto_msg=octeto.get_octeto_message(tipo_msg),
+        pending_toasts=_sacar_toasts_pendientes(),
+    )
+
+
+@app.route("/achievements")
+def achievements_page():
+    """Vitrina de logros."""
+    desbloqueados = session.get("achievements", [])
+    if desbloqueados:
+        msg = (f"🐙 Llevas {len(desbloqueados)} de {len(logros_mod.LOGROS)} logros. "
+               "Mi vitrina favorita, después de la de conchas.")
+    else:
+        msg = "🐙 Aún no tienes logros… ¡pero tengo ocho brazos llenos de fe en ti!"
+    return views_nuevas.render_achievements_page(
+        desbloqueados=desbloqueados,
+        octeto_msg=msg,
+        pending_toasts=_sacar_toasts_pendientes(),
+    )
+
+
+# ─────────────────────────────────────────────
+# RUTAS NUEVAS v2: MISIÓN NARRATIVA
+# ─────────────────────────────────────────────
+
+@app.route("/story")
+def story():
+    """Portada de la misión: muestra intro, progreso o final."""
+    total = missions.total_capitulos()
+    idx = session.get("mol_index_story", None)
+    terminada = idx is not None and idx >= total
+    en_curso = idx is not None and 0 < idx < total or (
+        idx == 0 and session.get("filled_story_0"))
+    return views_nuevas.render_story_page(
+        mission=missions.MISSION,
+        capitulo_actual=idx or 0, total=total,
+        terminada=terminada, en_curso=bool(en_curso),
+        octeto_msg=octeto.get_octeto_message("historia"),
+    )
+
+
+@app.route("/story/start")
+def story_start():
+    """(Re)inicia la misión narrativa y entra al primer capítulo."""
+    session["mol_index_story"] = 0
+    session["score_story"] = 0
+    session["hints_story_0"] = []
+    session["filled_story_0"] = {}
+    session.modified = True
+    return redirect("/game/story/play")
+
+
+# ─────────────────────────────────────────────
+# API NUEVA v2
+# ─────────────────────────────────────────────
+
+@app.route("/api/molecule3d/<mol_id>")
+def api_molecule3d(mol_id):
+    """Estructura 3D (XYZ) de una molécula del juego, por id."""
+    m = get_molecule_by_id(mol_id)
+    if not m:
+        return jsonify({"error": "Molécula no encontrada"}), 404
+    return jsonify({"id": m["id"], "name": m["name"],
+                    "xyz": get_xyz(m["svg_key"], m["atoms"], m["name"])})
 
 
 if __name__ == "__main__":
