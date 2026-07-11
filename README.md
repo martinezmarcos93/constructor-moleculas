@@ -4,13 +4,17 @@ Juego educativo web construido **100% en Python** con Flask.
 El HTML, CSS, la tabla periódica, los SVG de moléculas y toda la lógica
 del juego se generan dinámicamente desde Python.
 
+> 🐙 **Versión 2**: asistente Octeto, visor 3D, modo sandbox, puzles de
+> reacción, galería, logros y misión narrativa.
+> Ver [README_MEJORAS.md](README_MEJORAS.md).
+
 ---
 
 ## 🚀 Instalación y arranque
 
 ```bash
 # 1. Instalar dependencias (solo Flask)
-pip install flask
+pip install -r requirements.txt
 
 # 2. Arrancar el servidor
 python app.py
@@ -27,9 +31,18 @@ http://localhost:5000
 atomos_perdidos/
 ├── app.py              ← Servidor Flask + generación HTML desde Python
 ├── periodic_table.py   ← 118 elementos con todos sus datos
-├── molecules.py        ← 20 moléculas + lógica de GameSession
+├── molecules.py        ← 63 moléculas + lógica de GameSession
 ├── svg_molecules.py    ← Diagramas SVG generados desde Python
-└── README.md
+├── octeto.py           ← Frases del asistente Octeto 🐙 (v2)
+├── ui_common.py        ← Widgets compartidos: Octeto, toasts, sonidos, modal 3D (v2)
+├── molecule_3d.py      ← Geometrías VSEPR → formato XYZ para 3Dmol.js (v2)
+├── reactions.py        ← Puzles de reacción + validación (v2)
+├── missions.py         ← Misión narrativa "El Elixir de la Vida" (v2)
+├── achievements.py     ← Sistema de logros (v2)
+├── views_nuevas.py     ← Páginas nuevas: sandbox, galería, reacciones… (v2)
+├── requirements.txt
+├── README.md
+└── README_MEJORAS.md   ← Detalle de las novedades v2
 ```
 
 ---
