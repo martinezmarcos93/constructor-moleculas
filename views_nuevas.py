@@ -244,13 +244,14 @@ function sbExperimentar(id){
   fetch('/api/experiments/'+id).then(r=>r.json()).then(data=>{
     if(!data.ok){box.textContent='⚠️ '+data.error;return;}
     const e=data.experiment;
-    box.innerHTML='<strong>'+e.title+'</strong><p>'+e.hypothesis_prompt+'</p>'+
+    box.innerHTML='<strong>'+e.title+'</strong><p>'+e.hypothesis_prompt+'</p><textarea id="sb-observacion" placeholder="Escribe qué observas antes de ejecutar el experimento..." style="width:100%;min-height:70px;margin:8px 0"></textarea>'+
       '<div class="sb-exp-opciones">'+e.prediction_options.map(x=>'<button class="btn btn-ghost" onclick="sbEjecutarExperimento(\\''+id+'\\',\\''+x+'\\')">'+x.replaceAll('_',' ')+'</button>').join(' ')+'</div>';
   });
 }
 function sbEjecutarExperimento(id,prediction){
   const box=document.getElementById('sb-experimento');
-  const payload={prediction,observations:[]};
+  const obs=(document.getElementById('sb-observacion')||{}).value||'';
+  const payload={prediction,observations:obs.trim()?[obs.trim()]:[]};
   if(id==='polaridad_agua'){
     payload.atoms=sbAtoms.map(a=>({id:String(a.id),symbol:a.sym}));
     payload.bonds=sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}));
@@ -268,7 +269,7 @@ function sbEjecutarExperimento(id,prediction){
       if(id==='polaridad_agua') detail+=(result.polar?'El resultado es POLAR. ':'El resultado es NO POLAR. ')+(run.prediction=== 'polar' ? 'Tu predicción fue correcta.':'Tu predicción fue incorrecta.');
       if(id==='masa_molar') detail+='Mayor masa molar: '+(result.greater==='first'?'primera':'segunda')+' fórmula.';
       if(id==='conservacion_materia') detail+='Ecuación balanceada: '+result.equation;
-      box.innerHTML='<strong>Resultado</strong><p>'+detail+'</p>';
+      box.innerHTML='<strong>Resultado</strong><p>'+detail+'</p><small>La puntuación premia tanto acertar la predicción como registrar una observación.</small>';
     });
 }
 function sbCargarExperimentos(){
