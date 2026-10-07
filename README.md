@@ -187,3 +187,10 @@ sobre polaridad de H₂O, conservación de la materia y masa molar.
 La puntuación no evalúa solamente acertar: registrar una observación forma parte
 del experimento. Esto prepara el sistema para introducir hipótesis, variables
 controlables, evidencias y conclusiones en futuras misiones.
+
+
+Los experimentos incorporan ahora **variables manipulables** y límites didácticos.
+El jugador puede cambiar cantidades de reactivos, cantidades de sustancia o
+condiciones registradas, ejecutar el experimento y recibir evidencia calculada.
+La intención es que la pregunta pase de «¿cuál es la respuesta?» a
+«¿qué ocurre si modifico esta variable?».
