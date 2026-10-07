@@ -237,6 +237,48 @@ function sbGuardar(){
   });
 }
 
+function sbExperimentar(id){
+  const box=document.getElementById('sb-experimento');
+  if(!box) return;
+  box.dataset.id=id;
+  fetch('/api/experiments/'+id).then(r=>r.json()).then(data=>{
+    if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+    const e=data.experiment;
+    box.innerHTML='<strong>'+e.title+'</strong><p>'+e.hypothesis_prompt+'</p>'+
+      '<div class="sb-exp-opciones">'+e.prediction_options.map(x=>'<button class="btn btn-ghost" onclick="sbEjecutarExperimento(\\''+id+'\\',\\''+x+'\\')">'+x.replaceAll('_',' ')+'</button>').join(' ')+'</div>';
+  });
+}
+function sbEjecutarExperimento(id,prediction){
+  const box=document.getElementById('sb-experimento');
+  const payload={prediction,observations:[]};
+  if(id==='polaridad_agua'){
+    payload.atoms=sbAtoms.map(a=>({id:String(a.id),symbol:a.sym}));
+    payload.bonds=sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}));
+  } else if(id==='masa_molar'){
+    payload.formulas=['H₂O','CO₂'];
+  } else if(id==='conservacion_materia'){
+    payload.equation={reactants:['H2','O2'],products:['H2O']};
+  }
+  fetch('/api/experiments/'+id+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(data=>{
+      if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+      const run=data.run;
+      const result=run.result||{};
+      let detail='Puntuación: '+run.score+'/100. ';
+      if(id==='polaridad_agua') detail+=(result.polar?'El resultado es POLAR. ':'El resultado es NO POLAR. ')+(run.prediction=== 'polar' ? 'Tu predicción fue correcta.':'Tu predicción fue incorrecta.');
+      if(id==='masa_molar') detail+='Mayor masa molar: '+(result.greater==='first'?'primera':'segunda')+' fórmula.';
+      if(id==='conservacion_materia') detail+='Ecuación balanceada: '+result.equation;
+      box.innerHTML='<strong>Resultado</strong><p>'+detail+'</p>';
+    });
+}
+function sbCargarExperimentos(){
+  const box=document.getElementById('sb-experimentos');
+  if(!box) return;
+  fetch('/api/experiments').then(r=>r.json()).then(data=>{
+    box.innerHTML=data.experiments.map(e=>'<button class="btn btn-ghost" onclick="sbExperimentar(\\''+e.id+'\\')">🧪 '+e.title+'</button>').join(' ');
+  });
+}
+
 function sbAnalizar(){
   if(!sbAtoms.length){ octetoDecir('🐙 Primero construye una molécula.'); return; }
   sbValidar();
@@ -261,6 +303,8 @@ function sbAnalizar(){
       });
   });
 }
+
+sbCargarExperimentos();
 
 function sbVer3D(){
   if (!sbAtoms.length){ octetoDecir('🐙 Primero construye algo, luego lo giramos en 3D.'); return; }
@@ -312,6 +356,8 @@ Aquí la valencia es solo una sugerencia (Octeto protestará igual).</p>
     <div class="sb-formula" id="sb-formula"></div>
     <div class="sb-sel-info" id="sb-validacion"></div>
     <div class="sb-sel-info" id="sb-analisis"></div>
+    <div class="sb-sel-info" id="sb-experimentos"></div>
+    <div class="sb-sel-info" id="sb-experimento"></div>
   </div>
 
   <div class="sb-panel">
