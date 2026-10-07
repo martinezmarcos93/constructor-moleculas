@@ -1,4 +1,4 @@
-from mission_engine import generate_mission, evaluate_mission, list_missions
+from atomos_perdidos.game.mission_engine import generate_mission, evaluate_mission, list_missions
 
 
 def test_generated_missions_are_reproducible():
@@ -27,4 +27,4 @@ def test_mission_rejects_excessive_waste():
 def test_catalog_contains_multiple_difficulties():
     missions = list_missions()
     assert len(missions) >= 12
-    assert {m["difficulty"] for m in missions} == {1, 2, 3}\n\n\ndef test_expanded_reaction_templates_generate():\n    from mission_engine import generate_mission\n    for template in ("horno_metano", "neutralizacion", "calcinacion"):\n        mission = generate_mission(template, 2, "coverage")\n        assert mission["reactants"]\n        assert mission["products"]
+    assert {m["difficulty"] for m in missions} == {1, 2, 3}\n\n\ndef test_expanded_reaction_templates_generate():\n    from atomos_perdidos.game.mission_engine import generate_mission\n    for template in ("horno_metano", "neutralizacion", "calcinacion"):\n        mission = generate_mission(template, 2, "coverage")\n        assert mission["reactants"]\n        assert mission["products"]
