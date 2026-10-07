@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Sistema de descubrimiento y colección de moléculas."""
 from __future__ import annotations
 
