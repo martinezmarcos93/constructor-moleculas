@@ -10,7 +10,7 @@ from copy import deepcopy
 
 from molecular_structure import MoleculeStructure
 from polarity import molecular_polarity
-from reaction_engine import balance_equation
+from reaction_engine import balance_equation, reaction_quantities
 from stoichiometry import analyze_formula_stoichiometry
 
 
@@ -133,6 +133,15 @@ EXPERIMENT_SPECS = (
          VariableSpec("oxygen_amount", "Cantidad de O₂ (unidades)", "number", 1, 10, 1)),
     ),
     ExperimentSpec(
+        "rendimiento_reaccion", "La fábrica molecular",
+        "Predice qué reactivo se agotará primero y cuánto producto podrá formarse.",
+        ("reactivos", "estequiometría", "reactivo limitante", "rendimiento"),
+        ("Selecciona la reacción.", "Asigna cantidades iniciales.", "Predice el reactivo limitante.", "Ejecuta.", "Analiza el exceso."),
+        "reacciones", ("reactivo_1", "reactivo_2"), "reactivo_1",
+        (VariableSpec("first_moles", "Cantidad del primer reactivo (mol)", "number", 0.1, 20, 0.1),
+         VariableSpec("second_moles", "Cantidad del segundo reactivo (mol)", "number", 0.1, 20, 0.1)),
+    ),
+    ExperimentSpec(
         "masa_molar", "¿Cuánto pesa una molécula?",
         "Predice cuál muestra tendrá mayor masa total al cambiar la cantidad.",
         ("fórmula", "masa_atómica", "proporción"),
@@ -178,6 +187,16 @@ def run_experiment(experiment_id: str, payload: dict) -> dict:
         result["initial_amounts"] = {"H2": h2, "O2": o2}
         result["limiting_reagent"] = "H2" if h2 / 2 < o2 else "O2" if o2 < h2 / 2 else "ninguno"
         result["interpretation"] = "Cambiar cantidades modifica cuánto producto puede formarse, pero no elimina la conservación de átomos."
+        return run.evaluate(result)
+
+    if experiment_id == "rendimiento_reaccion":
+        first = run.variables.get("first_moles", 1.0)
+        second = run.variables.get("second_moles", 1.0)
+        result = reaction_quantities(["H2", "O2"], ["H2O"], [first, second])
+        result["interpretation"] = (
+            "El reactivo limitante fija el máximo teórico de producto; "
+            "el reactivo restante queda en exceso."
+        )
         return run.evaluate(result)
 
     if experiment_id == "masa_molar":
