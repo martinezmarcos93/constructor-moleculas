@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tutor adaptativo de Octeto.
 
 La regla es simple: cuanto mayor es la maestría, menos directa debe ser la ayuda.
