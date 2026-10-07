@@ -237,6 +237,31 @@ function sbGuardar(){
   });
 }
 
+function sbAnalizar(){
+  if(!sbAtoms.length){ octetoDecir('🐙 Primero construye una molécula.'); return; }
+  sbValidar();
+  fetch('/api/structure/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    atoms:sbAtoms.map(a=>({id:String(a.id),symbol:a.sym})),
+    bonds:sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}))
+  })}).then(r=>r.json()).then(data=>{
+    const box=document.getElementById('sb-analisis');
+    if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+    const parts=['Fórmula: '+data.formula];
+    if(data.vsepr && data.vsepr.supported) parts.push('Geometría: '+data.vsepr.geometry);
+    fetch('/api/stoichiometry/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formula:data.formula})})
+      .then(r=>r.json()).then(st=>{
+        if(st.ok) parts.push('Masa molar: '+st.molar_mass+' g/mol');
+        return fetch('/api/polarity/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          atoms:sbAtoms.map(a=>({id:String(a.id),symbol:a.sym})),
+          bonds:sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}))
+        })});
+      }).then(r=>r.json()).then(pol=>{
+        if(pol.ok && pol.polar !== undefined) parts.push(pol.polar?'Polar: sí':'Polar: no');
+        box.textContent=parts.join(' · ');
+      });
+  });
+}
+
 function sbVer3D(){
   if (!sbAtoms.length){ octetoDecir('🐙 Primero construye algo, luego lo giramos en 3D.'); return; }
   fetch('/sandbox/xyz', {
@@ -280,11 +305,13 @@ Aquí la valencia es solo una sugerencia (Octeto protestará igual).</p>
     <div class="sb-tools" style="margin-top:12px">
       <button class="btn btn-danger" onclick="sbLimpiar()">🗑️ Limpiar todo</button>
       <button class="btn btn-primary" onclick="sbCalcularFormula()">🧮 Calcular fórmula</button>
+      <button class="btn btn-ghost" onclick="sbAnalizar()">🔬 Analizar estructura</button>
       <button class="btn btn-teal" onclick="sbGuardar()">💾 Guardar molécula</button>
       <button class="btn btn-ghost" onclick="sbVer3D()">🔭 Ver en 3D</button>
     </div>
     <div class="sb-formula" id="sb-formula"></div>
     <div class="sb-sel-info" id="sb-validacion"></div>
+    <div class="sb-sel-info" id="sb-analisis"></div>
   </div>
 
   <div class="sb-panel">
