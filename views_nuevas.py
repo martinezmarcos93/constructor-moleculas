@@ -127,7 +127,7 @@ function sbClickLienzo(ev){
   // Enlace automático con átomos cercanos
   sbAtoms.forEach(a => {
     if (a.id !== atomo.id && Math.hypot(a.x - x, a.y - y) < AUTO_BOND_DIST){
-      sbBonds.push([a.id, atomo.id]);
+      sbBonds.push({a:a.id, b:atomo.id, order:1});
     }
   });
   playPop();
