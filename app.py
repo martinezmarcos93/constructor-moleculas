@@ -1107,6 +1107,89 @@ load();
 </script></body></html>"""
 
 @app.route("/api/missions", methods=["GET"])
+def api_missions():
+    return jsonify({"ok": True, "missions": list_missions(),
+                    "wallet": session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": [])})
+
+
+@app.route("/api/missions/generate", methods=["POST"])
+def api_generate_mission():
+    data = request.get_json(silent=True) or {}
+    try:
+        mission = generate_mission(data.get("mission_id"), int(data.get("difficulty", 1)), data.get("seed"))
+        return jsonify({"ok": True, "mission": mission, "hint": mission_hint(mission)})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/missions/<mission_id>/run", methods=["POST"])
+def api_run_mission(mission_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        parts = mission_id.rsplit("-d", 1)
+        template_id = parts[0]
+        difficulty = int(parts[1].split("-", 1)[0]) if len(parts) == 2 else int(data.get("difficulty", 1))
+        mission = generate_mission(template_id, difficulty, data.get("seed", mission_id))
+        result = evaluate_mission(mission, data.get("amounts", {}), data.get("prediction"))
+        if result["completed"]:
+            _registrar_progreso("reacciones", True, max(1, result["score"] // 10))
+            if result["perfect"]:
+                _registrar_recompensa(result["reward"], "mission:" + mission_id)
+        else:
+            _registrar_progreso("reacciones", False, 1)
+        result["wallet"] = session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": []})
+        result["unlocked"] = load_progression(session.get("progression")).unlocked_domains()
+        return jsonify({"ok": True, "mission": mission, "result": result})
+    except (TypeError, ValueError, KeyError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/missions/<mission_id>/hint")
+def api_mission_hint(mission_id):
+    try:
+        parts = mission_id.rsplit("-d", 1)
+        difficulty = int(parts[1].split("-", 1)[0]) if len(parts) == 2 else 1
+        template_id = parts[0]
+        mission = generate_mission(template_id, difficulty, mission_id)
+        return jsonify({"ok": True, "hint": mission_hint(mission)})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/discovery")
+def api_discovery():
+    total = sum(len(values) for level, values in MOLECULES.items() if level != "story")
+    return jsonify({"ok": True, **discovery_snapshot(session.get("discoveries", []), total)})
+
+
+@app.route("/api/discovery/record/<mol_id>", methods=["POST"])
+def api_record_discovery(mol_id):
+    molecule = get_molecule_by_id(mol_id)
+    if not molecule:
+        return jsonify({"ok": False, "error": "Molécula no encontrada."}), 404
+    items, first = discover(session.get("discoveries", []), molecule)
+    session["discoveries"] = items
+    session.modified = True
+    total = sum(len(values) for level, values in MOLECULES.items() if level != "story")
+    return jsonify({"ok": True, "first_discovery": first,
+                    "discovery": discovery_snapshot(items, total)})
+
+
+@app.route("/api/challenges/generate")
+def api_generate_challenge():
+    from challenge_model import generate_procedural_challenge
+    try:
+        challenge = generate_procedural_challenge(
+            MOLECULES,
+            int(request.args.get("difficulty", 1)),
+            request.args.get("seed"),
+        )
+        return jsonify({"ok": True, "challenge": challenge})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/experiments", methods=["GET"])
 def api_experiments():
     return jsonify({"ok": True, "experiments": list_experiments()})
 
