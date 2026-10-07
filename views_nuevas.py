@@ -86,12 +86,16 @@ color:var(--muted);cursor:pointer;font-family:monospace;font-size:.8rem}
 .sb-table-box{overflow-x:auto}
 .sb-formula{font-size:1.3rem;color:var(--accent2);font-weight:bold;min-height:1.6em}
 .sb-sel-info{font-size:.8rem;color:var(--muted)}
+#sb-validacion{min-height:1.5em;margin-top:6px}
+#sb-validacion[data-state="ok"]{color:var(--success)}
+#sb-validacion[data-state="error"]{color:var(--error)}
 """
 
 SANDBOX_JS = r"""
 // ═══ Estado del sandbox ═══
 let sbAtoms = [];            // {id, sym, x, y, valence}
-let sbBonds = [];            // [idA, idB]
+let sbBonds = [];            // {a:idA,b:idB,order:1}
+let sbBondOrder = 1;
 let sbNextId = 1;
 let sbElemento = null;       // elemento seleccionado en la mini-tabla
 let sbModo = 'colocar';      // colocar | enlazar | borrar
@@ -126,12 +130,13 @@ function sbClickLienzo(ev){
   // Enlace automático con átomos cercanos
   sbAtoms.forEach(a => {
     if (a.id !== atomo.id && Math.hypot(a.x - x, a.y - y) < AUTO_BOND_DIST){
-      sbBonds.push([a.id, atomo.id]);
+      sbBonds.push({a:a.id, b:atomo.id, order:1});
     }
   });
   playPop();
   sbAvisarValencia(atomo);
   sbRepintar();
+  sbValidar();
 }
 
 function sbClickAtomo(ev, id){
@@ -139,29 +144,35 @@ function sbClickAtomo(ev, id){
   const atomo = sbAtoms.find(a => a.id === id);
   if (sbModo === 'borrar'){
     sbAtoms = sbAtoms.filter(a => a.id !== id);
-    sbBonds = sbBonds.filter(b => b[0] !== id && b[1] !== id);
+    sbBonds = sbBonds.filter(b => b.a !== id && b.b !== id);
     sbRepintar();
+    sbValidar();
     return;
   }
   if (sbModo === 'enlazar'){
     if (sbEnlaceOrigen === null){
       sbEnlaceOrigen = id;
     } else if (sbEnlaceOrigen !== id){
-      const ya = sbBonds.some(b => (b[0]===sbEnlaceOrigen && b[1]===id) || (b[1]===sbEnlaceOrigen && b[0]===id));
+      const ya = sbBonds.some(b => (b.a===sbEnlaceOrigen && b.b===id) || (b.b===sbEnlaceOrigen && b.a===id));
       if (!ya){
-        sbBonds.push([sbEnlaceOrigen, id]);
+        sbBonds.push({a:sbEnlaceOrigen, b:id, order:sbBondOrder});
         playPop();
         sbAvisarValencia(atomo);
       }
       sbEnlaceOrigen = null;
     }
     sbRepintar();
+    sbValidar();
   }
 }
 
-function sbEnlacesDe(id){ return sbBonds.filter(b => b[0]===id || b[1]===id).length; }
+function sbEnlacesDe(id){ return sbBonds.filter(b => b.a===id || b.b===id).reduce((n,b) => n + b.order, 0); }
+function sbSetBondOrder(order){ sbBondOrder=order; document.querySelectorAll('.sb-order').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.order)===order)); }
+function sbCiclarEnlace(ev,a,b){ ev.stopPropagation(); const bond=sbBonds.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a)); if(bond){bond.order=bond.order>=3?1:bond.order+1; sbValidar(); sbRepintar();} }
 
 // Octeto avisa (pero no impide) si se supera la valencia
+function sbValidar(){ fetch('/api/structure/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({atoms:sbAtoms.map(a=>({id:String(a.id),symbol:a.sym})),bonds:sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}))})}).then(r=>r.json()).then(data=>{const box=document.getElementById('sb-validacion');if(!box)return;if(!data.ok){box.textContent='⚠️ '+data.error;return;}const e=(data.issues||[]).find(i=>i.severity==='error');box.textContent=data.valid?'✓ Estructura válida · '+data.formula+(data.vsepr&&data.vsepr.supported?' · '+data.vsepr.geometry:''):'✕ '+(e?e.message:'Estructura por corregir.');box.dataset.state=data.valid?'ok':'error';}).catch(()=>{}); }
+
 function sbAvisarValencia(atomo){
   if (atomo && atomo.valence > 0 && sbEnlacesDe(atomo.id) > atomo.valence){
     octetoDecir(FRASES_VALENCIA[Math.floor(Math.random()*FRASES_VALENCIA.length)]);
@@ -174,9 +185,9 @@ function sbRepintar(){
   lienzo.querySelectorAll('.sb-atom').forEach(n => n.remove());
   const svg = document.getElementById('sb-bonds');
   svg.innerHTML = sbBonds.map(b => {
-    const a1 = sbAtoms.find(a => a.id === b[0]), a2 = sbAtoms.find(a => a.id === b[1]);
+    const a1 = sbAtoms.find(a => a.id === b.a), a2 = sbAtoms.find(a => a.id === b.b);
     if (!a1 || !a2) return '';
-    return '<line x1="'+a1.x+'" y1="'+a1.y+'" x2="'+a2.x+'" y2="'+a2.y+'" stroke="#8888aa" stroke-width="3" stroke-linecap="round"/>';
+    return Array.from({length:b.order},(_,k)=>{const dx=a2.x-a1.x,dy=a2.y-a1.y,len=Math.hypot(dx,dy),off=(k-(b.order-1)/2)*5,ox=-dy/len*off,oy=dx/len*off;return '<line x1="'+(a1.x+ox)+'" y1="'+(a1.y+oy)+'" x2="'+(a2.x+ox)+'" y2="'+(a2.y+oy)+'" stroke="#8888aa" stroke-width="3" stroke-linecap="round"/>';}).join('');
   }).join('');
   sbAtoms.forEach(a => {
     const d = document.createElement('div');
@@ -217,7 +228,7 @@ function sbGuardar(){
   sbCalcularFormula(formula => {
     fetch('/sandbox/save', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({atoms: sbAtoms.map(a => ({s:a.sym, x:Math.round(a.x), y:Math.round(a.y)}))})
+      body: JSON.stringify({atoms: sbAtoms.map(a => ({id:a.id, s:a.sym, x:Math.round(a.x), y:Math.round(a.y)})), bonds: sbBonds})
     }).then(r => r.json()).then(data => {
       octetoDecir(data.mensaje);
       (data.toasts || []).forEach((t,i) => setTimeout(() => showToast(t), 400 + i*900));
@@ -225,6 +236,100 @@ function sbGuardar(){
     });
   });
 }
+
+function sbExperimentar(id){
+  const box=document.getElementById('sb-experimento');
+  if(!box) return;
+  box.dataset.id=id;
+  fetch('/api/experiments/'+id).then(r=>r.json()).then(data=>{
+    if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+    const e=data.experiment;
+    const controls=e.controls.map(v=>'<label style="display:block;margin:6px 0">'+v.label+' <input id="exp-'+v.id+'" type="number" min="'+(v.minimum===null?'':v.minimum)+'" max="'+(v.maximum===null?'':v.maximum)+'" step="'+(v.step===null?'':v.step)+'" value="'+(v.minimum===null?'':v.minimum)+'"></label>').join('');
+    box.innerHTML='<strong>'+e.title+'</strong><p>'+e.hypothesis_prompt+'</p>'+controls<textarea id="sb-observacion" placeholder="Escribe qué observas antes de ejecutar el experimento..." style="width:100%;min-height:70px;margin:8px 0"></textarea>'+
+      '<div class="sb-exp-opciones">'+e.prediction_options.map(x=>'<button class="btn btn-ghost" onclick="sbEjecutarExperimento(\\''+id+'\\',\\''+x+'\\')">'+x.replaceAll('_',' ')+'</button>').join(' ')+'</div>';
+  });
+}
+function sbEjecutarExperimento(id,prediction){
+  const box=document.getElementById('sb-experimento');
+  const obs=(document.getElementById('sb-observacion')||{}).value||'';
+  const payload={prediction,observations:obs.trim()?[obs.trim()]:[],variables:{}};
+  ['temperature','reactant_amount','oxygen_amount','first_amount','second_amount','first_moles','second_moles'].forEach(k=>{const el=document.getElementById('exp-'+k);if(el&&el.value!=='')payload.variables[k]=Number(el.value);});
+  if(id==='polaridad_agua'){
+    payload.atoms=sbAtoms.map(a=>({id:String(a.id),symbol:a.sym}));
+    payload.bonds=sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}));
+  } else if(id==='masa_molar'){
+    payload.formulas=['H₂O','CO₂'];
+  } else if(id==='rendimiento_reaccion'){
+    payload.equation={reactants:['H2','O2'],products:['H2O']};
+  } else if(id==='conservacion_materia'){
+    payload.equation={reactants:['H2','O2'],products:['H2O']};
+  }
+  if(id==='rendimiento_reaccion'){ return sbOptimizarReaccion(prediction); }
+  fetch('/api/experiments/'+id+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(data=>{
+      if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+      const run=data.run;
+      const result=run.result||{};
+      let detail='Puntuación: '+run.score+'/100. ';
+      if(id==='polaridad_agua') detail+=(result.polar?'El resultado es POLAR. ':'El resultado es NO POLAR. ')+(run.prediction=== 'polar' ? 'Tu predicción fue correcta.':'Tu predicción fue incorrecta.');
+      if(id==='masa_molar') detail+='Mayor masa molar: '+(result.greater==='first'?'primera':'segunda')+' fórmula.';
+      if(id==='conservacion_materia') detail+='Ecuación balanceada: '+result.equation;
+      if(id==='rendimiento_reaccion') detail+='Limitante: '+result.limiting_reagent+' · Producto teórico: '+result.products[0].theoretical_moles+' mol · Exceso: '+(result.excess_reagents.join(', ')||'ninguno');
+      box.innerHTML='<strong>Resultado</strong><p>'+detail+'</p><small>La puntuación premia tanto acertar la predicción como registrar una observación.</small>';
+    });
+}
+
+function sbOptimizarReaccion(prediction){
+  const box=document.getElementById('sb-experimento');
+  const h=document.getElementById('exp-first_moles'), o=document.getElementById('exp-second_moles');
+  const resources={H2:Number(h&&h.value||1),O2:Number(o&&o.value||1)};
+  fetch('/api/experiments/rendimiento_reaccion/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resources})})
+    .then(r=>r.json()).then(data=>{
+      if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+      const x=data.optimization;
+      box.innerHTML='<strong>Resultado de optimización</strong><p>Limitante: '+x.limiting_reagent+
+        ' · Producto teórico: '+x.products[0].theoretical_moles+' mol'+
+        ' · Utilización de recursos: '+x.efficiency+'%'+
+        ' · Puntuación: '+x.score+'/100</p>'+
+        '<p>Recompensa: '+x.reward.xp+' XP · '+x.reward.credits+' créditos · rango '+x.reward.rank+'</p>'+
+        '<small>'+x.interpretation+'</small>';
+    });
+}
+
+function sbCargarExperimentos(){
+  const box=document.getElementById('sb-experimentos');
+  if(!box) return;
+  fetch('/api/experiments').then(r=>r.json()).then(data=>{
+    box.innerHTML=data.experiments.map(e=>'<button class="btn btn-ghost" onclick="sbExperimentar(\\''+e.id+'\\')">🧪 '+e.title+'</button>').join(' ');
+  });
+}
+
+function sbAnalizar(){
+  if(!sbAtoms.length){ octetoDecir('🐙 Primero construye una molécula.'); return; }
+  sbValidar();
+  fetch('/api/structure/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    atoms:sbAtoms.map(a=>({id:String(a.id),symbol:a.sym})),
+    bonds:sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}))
+  })}).then(r=>r.json()).then(data=>{
+    const box=document.getElementById('sb-analisis');
+    if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+    const parts=['Fórmula: '+data.formula];
+    if(data.vsepr && data.vsepr.supported) parts.push('Geometría: '+data.vsepr.geometry);
+    fetch('/api/stoichiometry/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({formula:data.formula})})
+      .then(r=>r.json()).then(st=>{
+        if(st.ok) parts.push('Masa molar: '+st.molar_mass+' g/mol');
+        return fetch('/api/polarity/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          atoms:sbAtoms.map(a=>({id:String(a.id),symbol:a.sym})),
+          bonds:sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}))
+        })});
+      }).then(r=>r.json()).then(pol=>{
+        if(pol.ok && pol.polar !== undefined) parts.push(pol.polar?'Polar: sí':'Polar: no');
+        box.textContent=parts.join(' · ');
+      });
+  });
+}
+
+sbCargarExperimentos();
 
 function sbVer3D(){
   if (!sbAtoms.length){ octetoDecir('🐙 Primero construye algo, luego lo giramos en 3D.'); return; }
@@ -246,7 +351,7 @@ def render_sandbox_page(octeto_msg: str, frases_valencia: list,
     """Página del modo sandbox (libertad creativa)."""
     tabla = build_mini_table_html()
     body = f"""
-<h2 style="margin-bottom:4px">🧪 Sandbox — Libertad creativa</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><a class="btn btn-ghost" href="/missions">🎯 Misiones</a><a class="btn btn-ghost" href="/reactions">⚗️ Reacciones</a></div>\n<h2 style="margin-bottom:4px">🧪 Sandbox — Libertad creativa</h2>
 <p style="color:var(--muted);font-size:.8rem;margin-bottom:12px">
 Elige un elemento, haz clic en el lienzo para colocarlo. Los átomos cercanos se
 enlazan solos; usa la herramienta <b>Enlazar</b> para unirlos a mano.
@@ -257,6 +362,9 @@ Aquí la valencia es solo una sugerencia (Octeto protestará igual).</p>
     <div class="sb-tools">
       <button class="sb-tool active" data-modo="colocar" onclick="sbSetModo('colocar')">⚛️ Colocar</button>
       <button class="sb-tool" data-modo="enlazar" onclick="sbSetModo('enlazar')">🔗 Enlazar</button>
+      <button class="sb-tool sb-order active" data-order="1" onclick="sbSetBondOrder(1)">— Simple</button>
+      <button class="sb-tool sb-order" data-order="2" onclick="sbSetBondOrder(2)">═ Doble</button>
+      <button class="sb-tool sb-order" data-order="3" onclick="sbSetBondOrder(3)">≡ Triple</button>
       <button class="sb-tool" data-modo="borrar" onclick="sbSetModo('borrar')">🧽 Borrar átomo</button>
       <span class="sb-sel-info" id="sb-contador">0 átomos · 0 enlaces</span>
     </div>
@@ -266,10 +374,15 @@ Aquí la valencia es solo una sugerencia (Octeto protestará igual).</p>
     <div class="sb-tools" style="margin-top:12px">
       <button class="btn btn-danger" onclick="sbLimpiar()">🗑️ Limpiar todo</button>
       <button class="btn btn-primary" onclick="sbCalcularFormula()">🧮 Calcular fórmula</button>
+      <button class="btn btn-ghost" onclick="sbAnalizar()">🔬 Analizar estructura</button>
       <button class="btn btn-teal" onclick="sbGuardar()">💾 Guardar molécula</button>
       <button class="btn btn-ghost" onclick="sbVer3D()">🔭 Ver en 3D</button>
     </div>
     <div class="sb-formula" id="sb-formula"></div>
+    <div class="sb-sel-info" id="sb-validacion"></div>
+    <div class="sb-sel-info" id="sb-analisis"></div>
+    <div class="sb-sel-info" id="sb-experimentos"></div>
+    <div class="sb-sel-info" id="sb-experimento"></div>
   </div>
 
   <div class="sb-panel">

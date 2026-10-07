@@ -7,6 +7,8 @@ from flask import Flask, session, request, jsonify, redirect
 import json, random
 from collections import Counter
 
+from config import SECRET_KEY
+
 from periodic_table import ELEMENTS, ELEMENT_POSITIONS, CATEGORY_COLORS, CATEGORY_LABELS
 from molecules import GameSession, MOLECULES, LEVEL_LABELS, get_molecule_by_id
 from svg_molecules import get_svg
@@ -19,13 +21,27 @@ import achievements as logros_mod
 import views_nuevas
 from molecule_3d import get_xyz, xyz_from_sandbox
 from svg_molecules import ATOM_COLORS
+from chemistry_rules import analyze_formula
+from progression import load_progression
+from challenge_model import serialize_challenges
+from curriculum import knowledge_tree
+from adaptive_tutor import tutor_message
+from molecular_structure import MoleculeStructure
+from vsepr import classify_vsepr
+from stoichiometry import analyze_formula_stoichiometry
+from reaction_engine import balance_equation
+from polarity import molecular_polarity, bond_polarity
+from experiment_engine import get_experiment, list_experiments, run_experiment, optimize_reaction
+from mission_engine import generate_mission, list_missions, evaluate_mission, mission_hint
+from discovery_engine import discover, snapshot as discovery_snapshot
+from campaign import campaign_snapshot, current_chapter, reward_for_chapter
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
 
 app = Flask(__name__)
 # Clave fija SOLO para desarrollo (la sesión guarda progreso, no datos sensibles)
-app.secret_key = "atomos_perdidos_secret_2025"
+app.secret_key = SECRET_KEY
 
 # La historia se registra como pseudo-nivel: reutiliza TODO el motor del juego
 MOLECULES["story"] = missions.obtener_moleculas_historia()
@@ -35,8 +51,30 @@ MAX_GALERIA = 30  # tope de entradas en sesión para no inflar la cookie
 
 
 # ─────────────────────────────────────────────
-# HELPERS DE SESIÓN: galería, logros, fórmula
+# HELPERS DE SESIÓN: galería, logros, fórmula, progresión
 # ─────────────────────────────────────────────
+
+def _registrar_progreso(dominio: str, correcto: bool, puntos: int = 1) -> None:
+    """Actualiza la maestría pedagógica sin invalidar sesiones antiguas."""
+    progression = load_progression(session.get("progression"))
+    progression.register(dominio, correcto, puntos)
+    session["progression"] = progression.snapshot()
+    session.modified = True
+
+
+def _registrar_recompensa(reward: dict, source: str) -> dict:
+    """Persiste recompensas de laboratorio sin depender de una base de datos."""
+    wallet = session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": []})
+    wallet["xp"] = int(wallet.get("xp", 0)) + int(reward.get("xp", 0))
+    wallet["credits"] = int(wallet.get("credits", 0)) + int(reward.get("credits", 0))
+    completed = list(wallet.get("completed", []))
+    if source not in completed:
+        completed.append(source)
+    wallet["completed"] = completed
+    session["laboratory_rewards"] = wallet
+    session.modified = True
+    return wallet
+
 
 def _subindices(n: int) -> str:
     """Convierte 12 → '₁₂' para las fórmulas químicas."""
@@ -834,14 +872,18 @@ def place_element():
         if all_filled:
             points = max(10 - hints_used * 3, 1)
             session[score_key] = session.get(score_key, 0) + points
+            _registrar_progreso("moleculas", True, min(points, 5))
             session.modified = True
             # v2: registrar en la galería y comprobar logros
             _agregar_a_galeria({"tipo": "desafio", "id": mol["id"]})
+            discovered, first_discovery = discover(session.get("discoveries", []), mol)
+            session["discoveries"] = discovered
             _desbloquear_logros({"molecula_completada": True,
                                  "hints_usados": hints_used})
-            return jsonify({"reload": True, "completed": True})
+            return jsonify({"reload": True, "completed": True, "first_discovery": first_discovery})
         return jsonify({"reload": True})
     else:
+        _registrar_progreso("moleculas", False, 1)
         return jsonify({"reload": True, "error": f"Incorrecto. '{symbol}' no es el átomo esperado."})
 
 
@@ -913,6 +955,34 @@ def api_molecules():
     return jsonify(MOLECULES)
 
 
+@app.route("/api/progression")
+def api_progression():
+    """Estado de maestría del jugador para futuras interfaces adaptativas."""
+    return jsonify(load_progression(session.get("progression")).snapshot())
+
+
+@app.route("/api/challenges")
+def api_challenges():
+    """Catálogo pedagógico generado a partir de las moléculas existentes."""
+    return jsonify(serialize_challenges(MOLECULES))
+
+
+@app.route("/api/curriculum")
+def api_curriculum():
+    """Árbol curricular progresivo del juego."""
+    return jsonify(knowledge_tree())
+
+
+@app.route("/api/tutor")
+def api_tutor():
+    """Mensaje adaptativo de Octeto para una situación pedagógica."""
+    data = request.get_json(silent=True) or {}
+    event = data.get("event", "observe")
+    domain = data.get("domain", "moleculas")
+    detail = data.get("detail", "")
+    return jsonify({"message": tutor_message(event, session.get("progression"), domain, detail)})
+
+
 # ─────────────────────────────────────────────
 # Para render_game_page con estado de sesión completo
 # ─────────────────────────────────────────────
@@ -971,22 +1041,306 @@ def sandbox_formula():
     simbolos = data.get("simbolos", [])
     if not simbolos:
         return jsonify({"formula": "", "mensaje": "🐙 No hay átomos que contar."})
-    formula = calcular_formula(simbolos)
-    # ¿Coincide con alguna molécula conocida del juego? Octeto lo celebra.
-    conocida = None
-    for level_mols in MOLECULES.values():
-        for m in level_mols:
-            if calcular_formula(m["atoms"]) == formula:
-                conocida = m
-                break
-        if conocida:
-            break
+    known_formulas = {
+        m["formula"] for level_mols in MOLECULES.values()
+        for m in level_mols
+    }
+    analysis = analyze_formula(simbolos, known_formulas)
+    formula = analysis.formula
+
+    conocida = next(
+        (
+            m for level_mols in MOLECULES.values()
+            for m in level_mols
+            if m["formula"] == formula
+        ),
+        None,
+    )
     if conocida:
-        mensaje = (f"🐙 ¡Eso es {conocida['name']} ({conocida['formula']})! "
-                   f"La reconocería con los ocho ojos cerrados.")
+        mensaje = (
+            f"🐙 ¡Eso es {conocida['name']} ({conocida['formula']})! "
+            f"La reconocería con los ocho ojos cerrados."
+        )
+    elif not analysis.plausible:
+        mensaje = f"🐙 {analysis.message} La fórmula calculada es {formula}."
     else:
-        mensaje = f"🐙 Fórmula calculada: {formula}. No la tengo en mis apuntes… ¡química de vanguardia!"
-    return jsonify({"formula": formula, "mensaje": mensaje})
+        mensaje = (
+            f"🐙 Fórmula calculada: {formula}. "
+            f"{analysis.message}"
+        )
+    return jsonify({
+        "formula": formula,
+        "mensaje": mensaje,
+        "known": analysis.known,
+        "plausible": analysis.plausible,
+        "elements": analysis.elements,
+    })
+
+
+@app.route("/missions")
+def missions_page():
+    """Panel jugable de misiones procedurales."""
+    return """<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Átomos Perdidos · Misiones</title>
+<style>
+body{font-family:system-ui;background:#080914;color:#eee;max-width:1000px;margin:auto;padding:24px}
+.card{background:#121426;border:1px solid #2d3150;border-radius:14px;padding:18px;margin:12px 0}
+button,input{padding:10px;border-radius:8px;border:1px solid #444;background:#181b2e;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+small{color:#9da4c7}.result{white-space:pre-wrap}
+</style></head><body>
+<h1>Laboratorio · Misiones</h1>
+<p>Convierte estequiometría en estrategia. Cumple el objetivo con el menor desperdicio posible.</p>
+<div id="missions" class="grid"></div><div id="result" class="card result"></div>
+<script>
+async function load(){const r=await fetch('/api/missions');const d=await r.json();
+document.getElementById('missions').innerHTML=d.missions.map(m=>`
+<div class="card"><h3>${m.title}</h3><p>${m.briefing}</p>
+<small>Objetivo: ${m.target_moles} mol de ${m.target_product} · dificultad ${m.difficulty}</small>
+<p>${m.reactants.map(x=>`<label>${x} <input id="${m.id}-${x}" type="number" min="0.01" step="0.01" value="1"></label>`).join(' ')}</p>
+<button onclick="run('${m.id}')">Ejecutar misión</button>
+<button onclick="hint('${m.id}')">Pista</button></div>`).join('')}
+async function run(id){const m=(await (await fetch('/api/missions')).json()).missions.find(x=>x.id===id);
+const amounts={};m.reactants.forEach(r=>amounts[r]=Number(document.getElementById(id+'-'+r).value));
+const r=await fetch('/api/missions/'+encodeURIComponent(id)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amounts})});
+document.getElementById('result').textContent=JSON.stringify(await r.json(),null,2)}
+async function hint(id){const r=await fetch('/api/missions/'+encodeURIComponent(id)+'/hint');document.getElementById('result').textContent=JSON.stringify(await r.json(),null,2)}
+load();
+</script></body></html>"""
+
+@app.route("/campaign")
+def campaign_page():
+    return """<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Campaña · Átomos Perdidos</title><style>body{font-family:system-ui;background:#080914;color:#eee;max-width:1000px;margin:auto;padding:24px}.chapter{background:#121426;border:1px solid #2d3150;border-radius:14px;padding:18px;margin:12px 0}.locked{opacity:.45}.tag{display:inline-block;padding:4px 8px;border-radius:8px;background:#242844;font-size:.75rem}</style></head><body><h1>Campaña científica</h1><p id="current"></p><div id="chapters"></div><script>async function load(){const d=await (await fetch('/api/campaign')).json();document.getElementById('current').textContent='Capítulo actual: '+d.current.title;document.getElementById('chapters').innerHTML=d.chapters.map(c=>'<article class="chapter '+(c.unlocked?'':'locked')+'"><h2>'+c.title+'</h2><p>'+c.briefing+'</p><span class="tag">'+(c.unlocked?'DESBLOQUEADO':'BLOQUEADO')+'</span> <span class="tag">Maestría '+c.mastery+'%</span><p>'+c.narrative+'</p></article>').join('')}load()</script></body></html>"""
+
+@app.route("/api/campaign")
+def api_campaign():
+    snapshot = campaign_snapshot(session.get("progression"))
+    return jsonify({"ok": True, **snapshot, "current": current_chapter(session.get("progression"))})
+
+
+@app.route("/api/campaign/reward/<chapter_id>", methods=["POST"])
+def api_campaign_reward(chapter_id):
+    try:
+        chapter = next(c for c in campaign_snapshot(session.get("progression"))["chapters"] if c["id"] == chapter_id)
+        if not chapter["unlocked"]:
+            return jsonify({"ok": False, "error": "Capítulo aún bloqueado."}), 403
+        reward = reward_for_chapter(chapter_id)
+        wallet = _registrar_recompensa(reward, "chapter:" + chapter_id)
+        return jsonify({"ok": True, "reward": reward, "wallet": wallet})
+    except (StopIteration, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/missions", methods=["GET"])
+def api_missions():
+    return jsonify({"ok": True, "missions": list_missions(),
+                    "wallet": session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": [])})
+
+
+@app.route("/api/missions/generate", methods=["POST"])
+def api_generate_mission():
+    data = request.get_json(silent=True) or {}
+    try:
+        mission = generate_mission(data.get("mission_id"), int(data.get("difficulty", 1)), data.get("seed"))
+        return jsonify({"ok": True, "mission": mission, "hint": mission_hint(mission)})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/missions/<mission_id>/run", methods=["POST"])
+def api_run_mission(mission_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        parts = mission_id.rsplit("-d", 1)
+        template_id = parts[0]
+        difficulty = int(parts[1].split("-", 1)[0]) if len(parts) == 2 else int(data.get("difficulty", 1))
+        mission = generate_mission(mission_id, difficulty, data.get("seed", mission_id))
+        result = evaluate_mission(mission, data.get("amounts", {}), data.get("prediction"))
+        if result["completed"]:
+            _registrar_progreso("reacciones", True, max(1, result["score"] // 10))
+            if result["perfect"]:
+                _registrar_recompensa(result["reward"], "mission:" + mission_id)
+        else:
+            _registrar_progreso("reacciones", False, 1)
+        result["wallet"] = session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": []})
+        result["unlocked"] = load_progression(session.get("progression")).unlocked_domains()
+        return jsonify({"ok": True, "mission": mission, "result": result})
+    except (TypeError, ValueError, KeyError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/missions/<mission_id>/hint")
+def api_mission_hint(mission_id):
+    try:
+        parts = mission_id.rsplit("-d", 1)
+        difficulty = int(parts[1].split("-", 1)[0]) if len(parts) == 2 else 1
+        template_id = parts[0]
+        mission = generate_mission(template_id, difficulty, mission_id)
+        return jsonify({"ok": True, "hint": mission_hint(mission)})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/discovery")
+def api_discovery():
+    total = sum(len(values) for level, values in MOLECULES.items() if level != "story")
+    return jsonify({"ok": True, **discovery_snapshot(session.get("discoveries", []), total)})
+
+
+@app.route("/api/discovery/record/<mol_id>", methods=["POST"])
+def api_record_discovery(mol_id):
+    molecule = get_molecule_by_id(mol_id)
+    if not molecule:
+        return jsonify({"ok": False, "error": "Molécula no encontrada."}), 404
+    items, first = discover(session.get("discoveries", []), molecule)
+    session["discoveries"] = items
+    session.modified = True
+    total = sum(len(values) for level, values in MOLECULES.items() if level != "story")
+    return jsonify({"ok": True, "first_discovery": first,
+                    "discovery": discovery_snapshot(items, total)})
+
+
+@app.route("/api/challenges/generate")
+def api_generate_challenge():
+    from challenge_model import generate_procedural_challenge
+    try:
+        challenge = generate_procedural_challenge(
+            MOLECULES,
+            int(request.args.get("difficulty", 1)),
+            request.args.get("seed"),
+        )
+        return jsonify({"ok": True, "challenge": challenge})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/challenges/evaluate", methods=["POST"])
+def api_evaluate_challenge():
+    from challenge_model import evaluate_challenge
+    data = request.get_json(silent=True) or {}
+    challenge = data.get("challenge")
+    if not isinstance(challenge, dict):
+        return jsonify({"ok": False, "error": "Falta el desafío."}), 400
+    try:
+        result = evaluate_challenge(challenge, data.get("answer", ""))
+        domain = "geometria" if challenge.get("mode") == "geometry" else "moleculas"
+        _registrar_progreso(domain, result["correct"], 3 if result["correct"] else 1)
+        if result["correct"]:
+            reward = {"xp": 5 + int(challenge.get("difficulty", 1)), "credits": 1}
+            result["wallet"] = _registrar_recompensa(reward, "challenge:" + str(challenge.get("id", "")))
+        result["unlocked"] = load_progression(session.get("progression")).unlocked_domains()
+        return jsonify({"ok": True, "result": result})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/experiments", methods=["GET"])
+def api_experiments():
+    return jsonify({"ok": True, "experiments": list_experiments()})
+
+
+@app.route("/api/experiments/<experiment_id>/optimize", methods=["POST"])
+def api_optimize_experiment(experiment_id):
+    try:
+        result = optimize_reaction(experiment_id, request.get_json() or {})
+        _registrar_progreso("reacciones", result["score"] >= 70, max(1, result["reward"]["xp"] // 5))
+        result["wallet"] = _registrar_recompensa(result["reward"], experiment_id)
+        result["unlocked"] = load_progression(session.get("progression")).unlocked_domains()
+        return jsonify({"ok": True, "optimization": result})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/experiments/<experiment_id>/run", methods=["POST"])
+def api_run_experiment(experiment_id):
+    try:
+        result = run_experiment(experiment_id, request.get_json() or {})
+        if result.get("score", 0) >= 60:
+            _registrar_progreso("formulas" if experiment_id == "masa_molar" else "reacciones" if experiment_id == "conservacion_materia" else "geometria", True, max(1, result["score"] // 20))
+        return jsonify({"ok": True, "run": result})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/experiments/<experiment_id>", methods=["GET"])
+def api_experiment(experiment_id):
+    experiment = get_experiment(experiment_id)
+    if not experiment:
+        return jsonify({"ok": False, "error": "Experimento no encontrado."}), 404
+    return jsonify({"ok": True, "experiment": next(item for item in list_experiments() if item["id"] == experiment_id)})
+
+
+@app.route("/api/polarity/analyze", methods=["POST"])
+def api_polarity_analyze():
+    """Analiza polaridad de enlaces y de una estructura molecular."""
+    data = request.get_json() or {}
+    if data.get("symbol_a") and data.get("symbol_b"):
+        try:
+            return jsonify({"ok": True, **bond_polarity(data["symbol_a"], data["symbol_b"])})
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+    structure = MoleculeStructure()
+    try:
+        for atom in data.get("atoms", [])[:60]:
+            structure.add_atom(str(atom["id"]), atom["symbol"])
+        for bond in data.get("bonds", [])[:120]:
+            structure.add_bond(str(bond["a"]), str(bond["b"]), int(bond.get("order", 1)), str(bond.get("kind", "covalent")))
+        return jsonify({"ok": True, **molecular_polarity(structure)})
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/reaction/balance", methods=["POST"])
+def api_reaction_balance():
+    """Balancea una ecuación usando conservación de átomos."""
+    data = request.get_json() or {}
+    try:
+        result = balance_equation(
+            list(data.get("reactants", [])),
+            list(data.get("products", [])),
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/stoichiometry/analyze", methods=["POST"])
+def api_stoichiometry_analyze():
+    """Calcula composición y masa molar de una fórmula."""
+    data = request.get_json() or {}
+    try:
+        result = analyze_formula_stoichiometry(data.get("formula", ""))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/structure/validate", methods=["POST"])
+def api_structure_validate():
+    """Valida una estructura explícita de átomos y enlaces."""
+    data = request.get_json() or {}
+    structure = MoleculeStructure()
+    try:
+        for atom in data.get("atoms", [])[:60]:
+            structure.add_atom(str(atom["id"]), atom["symbol"])
+        for bond in data.get("bonds", [])[:120]:
+            structure.add_bond(
+                str(bond["a"]),
+                str(bond["b"]),
+                int(bond.get("order", 1)),
+                str(bond.get("kind", "covalent")),
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    summary = structure.summary()
+    summary["ok"] = True
+    summary["vsepr"] = classify_vsepr(structure) if structure.is_valid() else {
+        "supported": False,
+        "message": "Primero corrige la estructura para estudiar su geometría.",
+    }
+    return jsonify(summary)
 
 
 @app.route("/sandbox/save", methods=["POST"])
@@ -994,10 +1348,23 @@ def sandbox_save():
     """Guarda la creación del sandbox en la galería (sesión)."""
     data = request.get_json() or {}
     atoms = data.get("atoms", [])[:40]   # tope: la cookie de sesión es finita
+    bonds = data.get("bonds", [])[:120]
     if not atoms:
         return jsonify({"ok": False, "mensaje": "🐙 Nada que guardar."})
     formula = calcular_formula([a["s"] for a in atoms])
-    _agregar_a_galeria({"tipo": "sandbox", "formula": formula, "atoms": atoms})
+    structure = MoleculeStructure()
+    try:
+        for index, atom in enumerate(atoms):
+            structure.add_atom(str(atom.get("id", index)), atom["s"])
+        for bond in bonds:
+            structure.add_bond(
+                str(bond["a"]), str(bond["b"]), int(bond.get("order", 1)),
+                str(bond.get("kind", "covalent")),
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "mensaje": f"🐙 No pude guardar la estructura: {exc}"}), 400
+    _agregar_a_galeria({"tipo": "sandbox", "formula": formula, "atoms": atoms, "bonds": bonds,
+                        "valid": structure.is_valid()})
     toasts = _desbloquear_logros({})
     return jsonify({"ok": True, "formula": formula, "toasts": toasts,
                     "mensaje": f"🐙 ¡{formula} guardada en la galería! Mi vitrina y yo estamos orgullosos."})
@@ -1052,12 +1419,14 @@ def check_reaction():
     resultado = reactions.validar_reaccion(
         data.get("id", ""), data.get("orden", []), data.get("respuesta", -1))
     if not resultado.get("ok"):
+        _registrar_progreso("reacciones", False, 1)
         return jsonify({"correcto": False,
                         "mensaje": "🐙 Esa reacción no está en mis apuntes…",
                         "mensaje_texto": resultado.get("error", "Error")}), 400
 
     toasts = []
     if resultado["correcto"]:
+        _registrar_progreso("reacciones", True, min(resultado["puntos"], 5))
         hechas = session.get("reactions_done", [])
         if data["id"] not in hechas:
             session["reactions_done"] = hechas + [data["id"]]
@@ -1067,6 +1436,7 @@ def check_reaction():
         mensaje = octeto.get_octeto_message("reaccion_correcta")
         texto = f"✅ ¡Correcto! +{resultado['puntos']} puntos."
     else:
+        _registrar_progreso("reacciones", False, 1)
         mensaje = octeto.get_octeto_message("reaccion_incorrecta")
         texto = f"❌ {resultado['detalle']}"
 
@@ -1175,4 +1545,5 @@ def api_molecule3d(mol_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    from config import HOST, PORT, DEBUG
+    app.run(debug=DEBUG, host=HOST, port=PORT, use_reloader=DEBUG)

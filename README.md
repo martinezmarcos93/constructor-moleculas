@@ -16,8 +16,11 @@ del juego se generan dinámicamente desde Python.
 # 1. Instalar dependencias (solo Flask)
 pip install -r requirements.txt
 
-# 2. Arrancar el servidor
-python app.py
+# 2. Arrancar el servidor y abrir el navegador
+python start.py
+
+# Para detenerlo
+python stop.py
 
 # 3. Abrir en el navegador
 http://localhost:5000
@@ -36,10 +39,19 @@ atomos_perdidos/
 ├── octeto.py           ← Frases del asistente Octeto 🐙 (v2)
 ├── ui_common.py        ← Widgets compartidos: Octeto, toasts, sonidos, modal 3D (v2)
 ├── molecule_3d.py      ← Geometrías VSEPR → formato XYZ para 3Dmol.js (v2)
+├── chemistry_rules.py  ← Reglas didácticas de fórmulas y valencias
+├── molecular_structure.py ← Grafo explícito de átomos + enlaces
+├── vsepr.py             ← Geometría molecular introductoria
+├── stoichiometry.py     ← Fórmulas, masa molar y composición
+├── reaction_engine.py   ← Balanceo por conservación de átomos
 ├── reactions.py        ← Puzles de reacción + validación (v2)
 ├── missions.py         ← Misión narrativa "El Elixir de la Vida" (v2)
 ├── achievements.py     ← Sistema de logros (v2)
 ├── views_nuevas.py     ← Páginas nuevas: sandbox, galería, reacciones… (v2)
+├── progression.py       ← Maestría y desbloqueos pedagógicos
+├── challenge_model.py   ← Generación de desafíos por conceptos
+├── adaptive_tutor.py    ← Tutor Octeto adaptativo
+├── tests/                ← Pruebas unitarias del núcleo
 ├── requirements.txt
 ├── README.md
 └── README_MEJORAS.md   ← Detalle de las novedades v2
@@ -93,6 +105,18 @@ atomos_perdidos/
 
 ---
 
+## 🧪 Constructor químico
+
+El Sandbox ya trabaja con una representación explícita de estructura: átomos,
+enlaces simples/dobles/triples, valencia y conectividad. La validación se
+realiza en servidor y el frontend muestra si la estructura es válida y, cuando
+corresponde, su geometría VSEPR. También existen APIs para masa molar,
+composición porcentual, polaridad, balanceo de ecuaciones y experimentos educativos.
+
+El motor es deliberadamente educativo: una estructura marcada como válida
+significa que satisface las reglas didácticas implementadas, no que constituya
+una predicción química profesional para cualquier compuesto.
+
 ## 🔧 Extensión del juego
 
 Para añadir nuevas moléculas, edita `molecules.py`:
@@ -143,3 +167,62 @@ SVG_REGISTRY["H2O2"] = svg_H2O2
 | `/hint` | POST | Pedir pista |
 | `/next_molecule` | POST | Avanzar a siguiente molécula |
 | `/clear_slot` | POST | Borrar átomo colocado |
+| `/api/structure/validate` | POST | Validar átomos, enlaces y VSEPR |
+| `/api/stoichiometry/analyze` | POST | Masa molar y composición |
+| `/api/reaction/balance` | POST | Balancear una ecuación química |
+| `/api/polarity/analyze` | POST | Analizar polaridad de enlaces/estructuras |
+| `/api/experiments` | GET | Catálogo de experimentos del laboratorio |
+
+
+### Experimentos jugables
+
+El laboratorio ya dispone de un motor de experimentos con cuatro etapas:
+**predicción → ejecución → observación → evaluación**.
+
+Cada experimento puede declarar conceptos, variables, opciones de predicción,
+pasos y resultado calculado. La API `/api/experiments/<id>/run` devuelve el
+resultado químico y una puntuación educativa. Actualmente existen experimentos
+sobre polaridad de H₂O, conservación de la materia y masa molar.
+
+La puntuación no evalúa solamente acertar: registrar una observación forma parte
+del experimento. Esto prepara el sistema para introducir hipótesis, variables
+controlables, evidencias y conclusiones en futuras misiones.
+
+
+Los experimentos incorporan ahora **variables manipulables** y límites didácticos.
+El jugador puede cambiar cantidades de reactivos, cantidades de sustancia o
+condiciones registradas, ejecutar el experimento y recibir evidencia calculada.
+La intención es que la pregunta pase de «¿cuál es la respuesta?» a
+«¿qué ocurre si modifico esta variable?».
+
+
+El laboratorio de reacciones permite seleccionar una reacción educativa, modificar
+las cantidades iniciales de los reactivos y calcular automáticamente el balance,
+el reactivo limitante, los reactivos en exceso y el rendimiento teórico en moles.
+La misma mecánica puede reutilizarse en misiones donde el jugador deba optimizar
+recursos o elegir proporciones de reactivos.
+
+
+### Optimización de reacciones
+
+El laboratorio incluye un modo de **optimización de recursos**. El jugador recibe
+cantidades limitadas de reactivos, debe razonar sobre la proporción estequiométrica
+y buscar una configuración que minimice desperdicios. El motor devuelve utilización
+de recursos, puntuación, XP, créditos y rango. La maestría en reacciones puede
+desbloquear el dominio de laboratorio.
+
+### Misiones procedurales y descubrimiento
+
+El laboratorio ahora convierte la estequiometría en misiones jugables reproducibles. Cada misión define objetivo de producto, presupuesto de reactivos, tolerancia de desperdicio, utilización mínima y recompensa. Endpoints principales:
+
+- `GET /api/missions` — catálogo de misiones.
+- `POST /api/missions/generate` — genera una misión por dificultad/semilla.
+- `POST /api/missions/<id>/run` — ejecuta y puntúa una estrategia.
+- `GET /api/missions/<id>/hint` — pista conceptual.
+- `GET /missions` — panel jugable de misiones.
+- `GET /api/discovery` — colección descubierta.
+- `POST /api/discovery/record/<mol_id>` — registra un descubrimiento.
+- `GET /api/challenges/generate` — desafío pedagógico procedural.
+- `POST /api/challenges/evaluate` — evalúa el desafío y actualiza maestría/recompensas.
+
+Las métricas de utilización y desperdicio son métricas pedagógicas del juego; no representan rendimiento químico industrial.
