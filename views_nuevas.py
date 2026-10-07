@@ -253,12 +253,14 @@ function sbEjecutarExperimento(id,prediction){
   const box=document.getElementById('sb-experimento');
   const obs=(document.getElementById('sb-observacion')||{}).value||'';
   const payload={prediction,observations:obs.trim()?[obs.trim()]:[],variables:{}};
-  ['temperature','reactant_amount','oxygen_amount','first_amount','second_amount'].forEach(k=>{const el=document.getElementById('exp-'+k);if(el&&el.value!=='')payload.variables[k]=Number(el.value);});
+  ['temperature','reactant_amount','oxygen_amount','first_amount','second_amount','first_moles','second_moles'].forEach(k=>{const el=document.getElementById('exp-'+k);if(el&&el.value!=='')payload.variables[k]=Number(el.value);});
   if(id==='polaridad_agua'){
     payload.atoms=sbAtoms.map(a=>({id:String(a.id),symbol:a.sym}));
     payload.bonds=sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}));
   } else if(id==='masa_molar'){
     payload.formulas=['H₂O','CO₂'];
+  } else if(id==='rendimiento_reaccion'){
+    payload.equation={reactants:['H2','O2'],products:['H2O']};
   } else if(id==='conservacion_materia'){
     payload.equation={reactants:['H2','O2'],products:['H2O']};
   }
@@ -271,6 +273,7 @@ function sbEjecutarExperimento(id,prediction){
       if(id==='polaridad_agua') detail+=(result.polar?'El resultado es POLAR. ':'El resultado es NO POLAR. ')+(run.prediction=== 'polar' ? 'Tu predicción fue correcta.':'Tu predicción fue incorrecta.');
       if(id==='masa_molar') detail+='Mayor masa molar: '+(result.greater==='first'?'primera':'segunda')+' fórmula.';
       if(id==='conservacion_materia') detail+='Ecuación balanceada: '+result.equation;
+      if(id==='rendimiento_reaccion') detail+='Limitante: '+result.limiting_reagent+' · Producto teórico: '+result.products[0].theoretical_moles+' mol · Exceso: '+(result.excess_reagents.join(', ')||'ninguno');
       box.innerHTML='<strong>Resultado</strong><p>'+detail+'</p><small>La puntuación premia tanto acertar la predicción como registrar una observación.</small>';
     });
 }
