@@ -1129,7 +1129,7 @@ def api_run_mission(mission_id):
         parts = mission_id.rsplit("-d", 1)
         template_id = parts[0]
         difficulty = int(parts[1].split("-", 1)[0]) if len(parts) == 2 else int(data.get("difficulty", 1))
-        mission = generate_mission(template_id, difficulty, data.get("seed", mission_id))
+        mission = generate_mission(mission_id, difficulty, data.get("seed", mission_id))
         result = evaluate_mission(mission, data.get("amounts", {}), data.get("prediction"))
         if result["completed"]:
             _registrar_progreso("reacciones", True, max(1, result["score"] // 10))
