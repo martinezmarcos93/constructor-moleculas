@@ -22,6 +22,8 @@ import views_nuevas
 from molecule_3d import get_xyz, xyz_from_sandbox
 from svg_molecules import ATOM_COLORS
 from chemistry_rules import analyze_formula
+from progression import load_progression
+from challenge_model import serialize_challenges
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -38,8 +40,16 @@ MAX_GALERIA = 30  # tope de entradas en sesión para no inflar la cookie
 
 
 # ─────────────────────────────────────────────
-# HELPERS DE SESIÓN: galería, logros, fórmula
+# HELPERS DE SESIÓN: galería, logros, fórmula, progresión
 # ─────────────────────────────────────────────
+
+def _registrar_progreso(dominio: str, correcto: bool, puntos: int = 1) -> None:
+    """Actualiza la maestría pedagógica sin invalidar sesiones antiguas."""
+    progression = load_progression(session.get("progression"))
+    progression.register(dominio, correcto, puntos)
+    session["progression"] = progression.snapshot()
+    session.modified = True
+
 
 def _subindices(n: int) -> str:
     """Convierte 12 → '₁₂' para las fórmulas químicas."""
@@ -837,6 +847,7 @@ def place_element():
         if all_filled:
             points = max(10 - hints_used * 3, 1)
             session[score_key] = session.get(score_key, 0) + points
+            _registrar_progreso("moleculas", True, min(points, 5))
             session.modified = True
             # v2: registrar en la galería y comprobar logros
             _agregar_a_galeria({"tipo": "desafio", "id": mol["id"]})
@@ -845,6 +856,7 @@ def place_element():
             return jsonify({"reload": True, "completed": True})
         return jsonify({"reload": True})
     else:
+        _registrar_progreso("moleculas", False, 1)
         return jsonify({"reload": True, "error": f"Incorrecto. '{symbol}' no es el átomo esperado."})
 
 
@@ -914,6 +926,18 @@ def api_elements():
 def api_molecules():
     """API JSON: todas las moléculas."""
     return jsonify(MOLECULES)
+
+
+@app.route("/api/progression")
+def api_progression():
+    """Estado de maestría del jugador para futuras interfaces adaptativas."""
+    return jsonify(load_progression(session.get("progression")).snapshot())
+
+
+@app.route("/api/challenges")
+def api_challenges():
+    """Catálogo pedagógico generado a partir de las moléculas existentes."""
+    return jsonify(serialize_challenges(MOLECULES))
 
 
 # ─────────────────────────────────────────────
