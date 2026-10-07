@@ -81,7 +81,7 @@ def generate_mission(mission_id: str | None = None, difficulty: int = 1, seed: s
     min_utilization = min(0.98, 0.72 + difficulty * 0.05)
     # El presupuesto parte de la proporción estequiométrica ideal y agrega margen.
     if template["id"] == "fabrica_agua":
-        ideal_input = target * 1.5
+        ideal_input = target * 3.0
     else:
         # N2 + 3 H2 -> 2 NH3
         ideal_input = target * 2.0
