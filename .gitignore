@@ -10,3 +10,6 @@ venv/
 # IDEs
 .vscode/
 .idea/
+
+# Átomos Perdidos
+.atomos_perdidos.pid
