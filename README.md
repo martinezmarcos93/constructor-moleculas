@@ -111,7 +111,7 @@ El Sandbox ya trabaja con una representación explícita de estructura: átomos,
 enlaces simples/dobles/triples, valencia y conectividad. La validación se
 realiza en servidor y el frontend muestra si la estructura es válida y, cuando
 corresponde, su geometría VSEPR. También existen APIs para masa molar,
-composición porcentual y balanceo de ecuaciones.
+composición porcentual, polaridad, balanceo de ecuaciones y experimentos educativos.
 
 El motor es deliberadamente educativo: una estructura marcada como válida
 significa que satisface las reglas didácticas implementadas, no que constituya
@@ -170,3 +170,5 @@ SVG_REGISTRY["H2O2"] = svg_H2O2
 | `/api/structure/validate` | POST | Validar átomos, enlaces y VSEPR |
 | `/api/stoichiometry/analyze` | POST | Masa molar y composición |
 | `/api/reaction/balance` | POST | Balancear una ecuación química |
+| `/api/polarity/analyze` | POST | Analizar polaridad de enlaces/estructuras |
+| `/api/experiments` | GET | Catálogo de experimentos del laboratorio |
