@@ -177,8 +177,8 @@ def optimize_reaction(experiment_id: str, payload: dict) -> dict:
     result = reaction_quantities(["H2", "O2"], ["H2O"], [h2, o2])
     theoretical = result["products"][0]["theoretical_moles"]
     total_input = h2 + o2
-    useful_ratio = theoretical / total_input
-    efficiency = round(min(100.0, useful_ratio * 100), 2)
+    consumed = sum(item["consumed_moles"] for item in result["reactants"])
+    efficiency = round(min(100.0, consumed / total_input * 100), 2)
     balanced_ratio = h2 / o2
     ratio_penalty = abs(balanced_ratio - 2.0)
     resource_score = max(0, round(100 - ratio_penalty * 25))
