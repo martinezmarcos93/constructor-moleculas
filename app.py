@@ -32,6 +32,8 @@ from stoichiometry import analyze_formula_stoichiometry
 from reaction_engine import balance_equation
 from polarity import molecular_polarity, bond_polarity
 from experiment_engine import get_experiment, list_experiments, run_experiment, optimize_reaction
+from mission_engine import generate_mission, list_missions, evaluate_mission, mission_hint
+from discovery_engine import discover, snapshot as discovery_snapshot
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1072,7 +1074,39 @@ def sandbox_formula():
     })
 
 
-@app.route("/api/experiments", methods=["GET"])
+@app.route("/missions")
+def missions_page():
+    """Panel jugable de misiones procedurales."""
+    return """<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Átomos Perdidos · Misiones</title>
+<style>
+body{font-family:system-ui;background:#080914;color:#eee;max-width:1000px;margin:auto;padding:24px}
+.card{background:#121426;border:1px solid #2d3150;border-radius:14px;padding:18px;margin:12px 0}
+button,input{padding:10px;border-radius:8px;border:1px solid #444;background:#181b2e;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+small{color:#9da4c7}.result{white-space:pre-wrap}
+</style></head><body>
+<h1>Laboratorio · Misiones</h1>
+<p>Convierte estequiometría en estrategia. Cumple el objetivo con el menor desperdicio posible.</p>
+<div id="missions" class="grid"></div><div id="result" class="card result"></div>
+<script>
+async function load(){const r=await fetch('/api/missions');const d=await r.json();
+document.getElementById('missions').innerHTML=d.missions.map(m=>`
+<div class="card"><h3>${m.title}</h3><p>${m.briefing}</p>
+<small>Objetivo: ${m.target_moles} mol de ${m.target_product} · dificultad ${m.difficulty}</small>
+<p>${m.reactants.map(x=>`<label>${x} <input id="${m.id}-${x}" type="number" min="0.01" step="0.01" value="1"></label>`).join(' ')}</p>
+<button onclick="run('${m.id}')">Ejecutar misión</button>
+<button onclick="hint('${m.id}')">Pista</button></div>`).join('')}
+async function run(id){const m=(await (await fetch('/api/missions')).json()).missions.find(x=>x.id===id);
+const amounts={};m.reactants.forEach(r=>amounts[r]=Number(document.getElementById(id+'-'+r).value));
+const r=await fetch('/api/missions/'+encodeURIComponent(id)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amounts})});
+document.getElementById('result').textContent=JSON.stringify(await r.json(),null,2)}
+async function hint(id){const r=await fetch('/api/missions/'+encodeURIComponent(id)+'/hint');document.getElementById('result').textContent=JSON.stringify(await r.json(),null,2)}
+load();
+</script></body></html>"""
+
+@app.route("/api/missions", methods=["GET"])
 def api_experiments():
     return jsonify({"ok": True, "experiments": list_experiments()})
 
