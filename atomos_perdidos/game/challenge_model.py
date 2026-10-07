@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Metadatos pedagógicos para desafíos de Átomos Perdidos.
 
 Permite que una misma molécula se convierta en ejercicios de dificultad
