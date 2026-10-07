@@ -107,6 +107,9 @@ class MoleculeStructure:
             ))
 
         for atom in self.atoms.values():
+            incident = [b for b in self.bonds if atom.id in (b.a, b.b)]
+            if any(b.kind == "ionic" for b in incident):
+                continue
             valences = COMMON_VALENCES.get(atom.symbol)
             if not valences:
                 issues.append(ValidationIssue(
