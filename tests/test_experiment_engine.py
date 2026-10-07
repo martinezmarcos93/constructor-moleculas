@@ -92,3 +92,30 @@ def test_experiment_rejects_out_of_range_variable():
             "conservacion_materia",
             {"variables": {"reactant_amount": 99}},
         )
+
+
+def test_limiting_reagent_experiment_uses_actual_quantities():
+    result = run_experiment(
+        "rendimiento_reaccion",
+        {
+            "prediction": "reactivo_2",
+            "observations": ["O2 se agota primero."],
+            "variables": {"first_moles": 10, "second_moles": 1},
+        },
+    )
+    assert result["completed"]
+    assert result["result"]["limiting_reagent"] == "O2"
+    assert result["score"] == 100
+    assert result["result"]["products"][0]["theoretical_moles"] == 2.0
+
+
+def test_limiting_reagent_reports_excess():
+    result = run_experiment(
+        "rendimiento_reaccion",
+        {
+            "prediction": "reactivo_1",
+            "variables": {"first_moles": 2, "second_moles": 2},
+        },
+    )
+    assert result["result"]["limiting_reagent"] == "H2"
+    assert result["result"]["excess_reagents"] == ["O2"]
