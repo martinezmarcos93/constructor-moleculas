@@ -1196,4 +1196,5 @@ def api_molecule3d(mol_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    from config import HOST, PORT, DEBUG
+    app.run(debug=DEBUG, host=HOST, port=PORT, use_reloader=DEBUG)
