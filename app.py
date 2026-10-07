@@ -948,6 +948,16 @@ def api_curriculum():
     return jsonify(knowledge_tree())
 
 
+@app.route("/api/tutor")
+def api_tutor():
+    """Mensaje adaptativo de Octeto para una situación pedagógica."""
+    data = request.get_json(silent=True) or {}
+    event = data.get("event", "observe")
+    domain = data.get("domain", "moleculas")
+    detail = data.get("detail", "")
+    return jsonify({"message": tutor_message(event, session.get("progression"), domain, detail)})
+
+
 # ─────────────────────────────────────────────
 # Para render_game_page con estado de sesión completo
 # ─────────────────────────────────────────────
