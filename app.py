@@ -59,6 +59,20 @@ def _registrar_progreso(dominio: str, correcto: bool, puntos: int = 1) -> None:
     session.modified = True
 
 
+def _registrar_recompensa(reward: dict, source: str) -> dict:
+    """Persiste recompensas de laboratorio sin depender de una base de datos."""
+    wallet = session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": []})
+    wallet["xp"] = int(wallet.get("xp", 0)) + int(reward.get("xp", 0))
+    wallet["credits"] = int(wallet.get("credits", 0)) + int(reward.get("credits", 0))
+    completed = list(wallet.get("completed", []))
+    if source not in completed:
+        completed.append(source)
+    wallet["completed"] = completed
+    session["laboratory_rewards"] = wallet
+    session.modified = True
+    return wallet
+
+
 def _subindices(n: int) -> str:
     """Convierte 12 → '₁₂' para las fórmulas químicas."""
     subs = "₀₁₂₃₄₅₆₇₈₉"
@@ -1068,6 +1082,8 @@ def api_optimize_experiment(experiment_id):
     try:
         result = optimize_reaction(experiment_id, request.get_json() or {})
         _registrar_progreso("reacciones", result["score"] >= 70, max(1, result["reward"]["xp"] // 5))
+        result["wallet"] = _registrar_recompensa(result["reward"], experiment_id)
+        result["unlocked"] = load_progression(session.get("progression")).unlocked_domains()
         return jsonify({"ok": True, "optimization": result})
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
