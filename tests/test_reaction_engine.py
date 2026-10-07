@@ -29,3 +29,19 @@ def test_reaction_quantities_finds_limiting_reagent():
     assert result["limiting_reagent"] == "O2"
     assert result["products"][0]["theoretical_moles"] == 2.0
     assert result["reactants"][0]["remaining_moles"] == 3.0
+
+
+def test_reaction_optimization_rewards_balanced_resources():
+    from experiment_engine import optimize_reaction
+    result = optimize_reaction("rendimiento_reaccion", {"resources": {"H2": 2, "O2": 1}})
+    assert result["limiting_reagent"] == "H2"
+    assert result["efficiency"] == 100.0
+    assert result["score"] >= 90
+    assert result["reward"]["rank"] == "maestro"
+
+
+def test_reaction_optimization_penalizes_bad_ratio():
+    from experiment_engine import optimize_reaction
+    result = optimize_reaction("rendimiento_reaccion", {"resources": {"H2": 1, "O2": 5}})
+    assert result["efficiency"] < 100
+    assert result["excess_reagents"] == ["O2"]
