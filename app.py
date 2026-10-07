@@ -31,7 +31,7 @@ from vsepr import classify_vsepr
 from stoichiometry import analyze_formula_stoichiometry
 from reaction_engine import balance_equation
 from polarity import molecular_polarity, bond_polarity
-from experiment_engine import get_experiment, list_experiments
+from experiment_engine import get_experiment, list_experiments, run_experiment
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1061,6 +1061,17 @@ def sandbox_formula():
 @app.route("/api/experiments", methods=["GET"])
 def api_experiments():
     return jsonify({"ok": True, "experiments": list_experiments()})
+
+
+@app.route("/api/experiments/<experiment_id>/run", methods=["POST"])
+def api_run_experiment(experiment_id):
+    try:
+        result = run_experiment(experiment_id, request.get_json() or {})
+        if result.get("score", 0) >= 60:
+            _registrar_progreso("formulas" if experiment_id == "masa_molar" else "reacciones" if experiment_id == "conservacion_materia" else "geometria", True, max(1, result["score"] // 20))
+        return jsonify({"ok": True, "run": result})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @app.route("/api/experiments/<experiment_id>", methods=["GET"])
