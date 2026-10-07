@@ -50,6 +50,27 @@ MISSION_TEMPLATES = (
         "reactants": ("N2", "H2"), "products": ("NH3",),
         "concepts": ("balanceo", "reactivo_limitante", "estequiometria", "proporcion"),
     },
+    {
+        "id": "horno_metano",
+        "title": "El horno de metano",
+        "briefing": "Genera dióxido de carbono y agua mediante combustión completa con el mínimo desperdicio.",
+        "reactants": ("CH4", "O2"), "products": ("CO2", "H2O"),
+        "concepts": ("combustion", "balanceo", "reactivo_limitante", "estequiometria"),
+    },
+    {
+        "id": "neutralizacion",
+        "title": "La cámara de neutralización",
+        "briefing": "Neutraliza ácido y base y determina qué reactivo limita la transformación.",
+        "reactants": ("HCl", "NaOH"), "products": ("NaCl", "H2O"),
+        "concepts": ("acido_base", "balanceo", "reactivo_limitante"),
+    },
+    {
+        "id": "calcinacion",
+        "title": "El horno de caliza",
+        "briefing": "Descompón carbonato de calcio y controla el consumo del reactor.",
+        "reactants": ("CaCO3",), "products": ("CaO", "CO2"),
+        "concepts": ("descomposicion", "conservacion", "estequiometria"),
+    },
 )
 
 
@@ -82,11 +103,17 @@ def generate_mission(mission_id: str | None = None, difficulty: int = 1, seed: s
     tolerance = max(0.05, 0.25 - difficulty * 0.03)
     min_utilization = min(0.98, 0.72 + difficulty * 0.05)
     # El presupuesto parte de la proporción estequiométrica ideal y agrega margen.
+    ideal_input = target * 2.0
     if template["id"] == "fabrica_agua":
         ideal_input = target * 3.0
-    else:
-        # N2 + 3 H2 -> 2 NH3
+    elif template["id"] == "planta_amoniaco":
         ideal_input = target * 2.0
+    elif template["id"] == "horno_metano":
+        ideal_input = target * 2.5
+    elif template["id"] == "neutralizacion":
+        ideal_input = target * 2.0
+    elif template["id"] == "calcinacion":
+        ideal_input = target
     budget = round(ideal_input * (1.0 + tolerance), 2)
 
     spec = MissionSpec(
@@ -187,8 +214,11 @@ def evaluate_mission(spec: dict, amounts: dict, prediction: str | None = None) -
 
 
 def mission_hint(spec: dict) -> str:
-    if spec["reactants"] == ("H2", "O2"):
-        return "La ecuación exige 2 mol de H₂ por cada 1 mol de O₂."
-    if spec["reactants"] == ("N2", "H2"):
-        return "La ecuación exige 1 mol de N₂ por cada 3 mol de H₂."
-    return "Primero balancea la reacción y después calcula la proporción de reactivos."
+    hints = {
+        ("H2", "O2"): "La ecuación exige 2 mol de H₂ por cada 1 mol de O₂.",
+        ("N2", "H2"): "La ecuación exige 1 mol de N₂ por cada 3 mol de H₂.",
+        ("CH4", "O2"): "La combustión completa del metano exige 2 mol de O₂ por cada mol de CH₄.",
+        ("HCl", "NaOH"): "La neutralización 1:1 consume un mol de ácido por cada mol de base.",
+        ("CaCO3",): "La calcinación es 1:1:1: cada mol de CaCO₃ produce un mol de CaO y uno de CO₂.",
+    }
+    return hints.get(tuple(spec["reactants"]), "Primero balancea la reacción y después calcula la proporción de reactivos.")
