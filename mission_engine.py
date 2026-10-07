@@ -62,8 +62,9 @@ def generate_mission(mission_id: str | None = None, difficulty: int = 1, seed: s
     difficulty = max(1, min(5, int(difficulty)))
     index = _seed_value(seed, difficulty) % len(MISSION_TEMPLATES)
     if mission_id:
+        requested_template = str(mission_id).rsplit("-d", 1)[0]
         for i, template in enumerate(MISSION_TEMPLATES):
-            if template["id"] == mission_id:
+            if template["id"] == requested_template:
                 index = i
                 break
         else:
