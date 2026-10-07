@@ -21,3 +21,11 @@ def test_balance_common_reactions(reactants, products, expected):
 def test_requires_both_sides():
     with pytest.raises(ValueError):
         balance_equation(["H2"], [])
+
+
+def test_reaction_quantities_finds_limiting_reagent():
+    from reaction_engine import reaction_quantities
+    result = reaction_quantities(["H2", "O2"], ["H2O"], [5, 1])
+    assert result["limiting_reagent"] == "O2"
+    assert result["products"][0]["theoretical_moles"] == 2.0
+    assert result["reactants"][0]["remaining_moles"] == 3.0
