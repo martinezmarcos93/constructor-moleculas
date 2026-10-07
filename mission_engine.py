@@ -69,7 +69,12 @@ def generate_mission(mission_id: str | None = None, difficulty: int = 1, seed: s
             raise ValueError("Misión desconocida.")
     template = MISSION_TEMPLATES[index]
 
-    multiplier = 1 + ((_seed_value(seed, difficulty) // 7) % (2 + difficulty))
+    exact = re.search(r"-d(\\d+)-(\\d+)$", str(mission_id or ""))
+    if exact:
+        difficulty = max(1, min(5, int(exact.group(1))))
+        multiplier = int(exact.group(2))
+    else:
+        multiplier = 1 + ((_seed_value(seed, difficulty) // 7) % (2 + difficulty))
     target = float(multiplier)
     # A mayor dificultad, se estrecha la tolerancia de desperdicio y el margen.
     tolerance = max(0.05, 0.25 - difficulty * 0.03)
