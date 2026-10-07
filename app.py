@@ -1113,10 +1113,23 @@ def sandbox_save():
     """Guarda la creación del sandbox en la galería (sesión)."""
     data = request.get_json() or {}
     atoms = data.get("atoms", [])[:40]   # tope: la cookie de sesión es finita
+    bonds = data.get("bonds", [])[:120]
     if not atoms:
         return jsonify({"ok": False, "mensaje": "🐙 Nada que guardar."})
     formula = calcular_formula([a["s"] for a in atoms])
-    _agregar_a_galeria({"tipo": "sandbox", "formula": formula, "atoms": atoms})
+    structure = MoleculeStructure()
+    try:
+        for index, atom in enumerate(atoms):
+            structure.add_atom(str(atom.get("id", index)), atom["s"])
+        for bond in bonds:
+            structure.add_bond(
+                str(bond["a"]), str(bond["b"]), int(bond.get("order", 1)),
+                str(bond.get("kind", "covalent")),
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "mensaje": f"🐙 No pude guardar la estructura: {exc}"}), 400
+    _agregar_a_galeria({"tipo": "sandbox", "formula": formula, "atoms": atoms, "bonds": bonds,
+                        "valid": structure.is_valid()})
     toasts = _desbloquear_logros({})
     return jsonify({"ok": True, "formula": formula, "toasts": toasts,
                     "mensaje": f"🐙 ¡{formula} guardada en la galería! Mi vitrina y yo estamos orgullosos."})
