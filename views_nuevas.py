@@ -264,6 +264,7 @@ function sbEjecutarExperimento(id,prediction){
   } else if(id==='conservacion_materia'){
     payload.equation={reactants:['H2','O2'],products:['H2O']};
   }
+  if(id==='rendimiento_reaccion'){ return sbOptimizarReaccion(prediction); }
   fetch('/api/experiments/'+id+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json()).then(data=>{
       if(!data.ok){box.textContent='⚠️ '+data.error;return;}
@@ -277,6 +278,24 @@ function sbEjecutarExperimento(id,prediction){
       box.innerHTML='<strong>Resultado</strong><p>'+detail+'</p><small>La puntuación premia tanto acertar la predicción como registrar una observación.</small>';
     });
 }
+
+function sbOptimizarReaccion(prediction){
+  const box=document.getElementById('sb-experimento');
+  const h=document.getElementById('exp-first_moles'), o=document.getElementById('exp-second_moles');
+  const resources={H2:Number(h&&h.value||1),O2:Number(o&&o.value||1)};
+  fetch('/api/experiments/rendimiento_reaccion/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resources})})
+    .then(r=>r.json()).then(data=>{
+      if(!data.ok){box.textContent='⚠️ '+data.error;return;}
+      const x=data.optimization;
+      box.innerHTML='<strong>Resultado de optimización</strong><p>Limitante: '+x.limiting_reagent+
+        ' · Producto teórico: '+x.products[0].theoretical_moles+' mol'+
+        ' · Utilización de recursos: '+x.efficiency+'%'+
+        ' · Puntuación: '+x.score+'/100</p>'+
+        '<p>Recompensa: '+x.reward.xp+' XP · '+x.reward.credits+' créditos · rango '+x.reward.rank+'</p>'+
+        '<small>'+x.interpretation+'</small>';
+    });
+}
+
 function sbCargarExperimentos(){
   const box=document.getElementById('sb-experimentos');
   if(!box) return;
