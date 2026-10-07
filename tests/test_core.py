@@ -1,6 +1,6 @@
 """Pruebas del núcleo de química y progresión."""
-from chemistry_rules import analyze_formula, format_formula
-from progression import Progression
+from atomos_perdidos.core.chemistry_rules import analyze_formula, format_formula
+from atomos_perdidos.game.progression import Progression
 
 def test_format_formula_conventions():
     assert format_formula(["H", "H", "O"]) == "H₂O"
@@ -23,7 +23,7 @@ def test_progression_unlocks_in_order():
 
 
 def test_challenges_include_geometry_mode():
-    from challenge_model import build_challenges
+    from atomos_perdidos.game.challenge_model import build_challenges
     molecules = {
         "medium": [{
             "id": "H2O",
