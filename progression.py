@@ -2,7 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 
-DOMAINS = ("atomos", "tabla_periodica", "enlaces", "moleculas", "geometria", "formulas", "reacciones", "organica")
+DOMAINS = ("atomos", "tabla_periodica", "enlaces", "moleculas", "geometria", "formulas", "reacciones", "laboratorio", "organica")
 
 @dataclass
 class Mastery:
