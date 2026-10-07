@@ -201,3 +201,12 @@ las cantidades iniciales de los reactivos y calcular automáticamente el balance
 el reactivo limitante, los reactivos en exceso y el rendimiento teórico en moles.
 La misma mecánica puede reutilizarse en misiones donde el jugador deba optimizar
 recursos o elegir proporciones de reactivos.
+
+
+### Optimización de reacciones
+
+El laboratorio incluye un modo de **optimización de recursos**. El jugador recibe
+cantidades limitadas de reactivos, debe razonar sobre la proporción estequiométrica
+y buscar una configuración que minimice desperdicios. El motor devuelve utilización
+de recursos, puntuación, XP, créditos y rango. La maestría en reacciones puede
+desbloquear el dominio de laboratorio.
