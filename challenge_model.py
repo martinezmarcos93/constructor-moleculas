@@ -136,3 +136,26 @@ def generate_procedural_challenge(molecules: dict[str, list[dict]], difficulty: 
         "prompt": prompt,
         "answer": answer,
     }
+
+
+def evaluate_challenge(challenge: dict, answer) -> dict:
+    """Evalúa una respuesta generada, con normalización textual básica."""
+    expected = challenge.get("answer")
+    if expected is None:
+        raise ValueError("El desafío no tiene una respuesta evaluable.")
+    given = str(answer).strip().casefold()
+    target = str(expected).strip().casefold()
+    correct = given == target
+    score = 100 if correct else 0
+    if not correct and challenge.get("mode") == "atoms":
+        try:
+            correct = int(float(answer)) == int(expected)
+            score = 100 if correct else 0
+        except (TypeError, ValueError):
+            pass
+    return {
+        "correct": correct,
+        "score": score,
+        "answer": expected,
+        "feedback": "Correcto. El concepto queda reforzado." if correct else "Todavía no. Revisa la pista conceptual y vuelve a intentarlo.",
+    }
