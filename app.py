@@ -1079,7 +1079,7 @@ def api_experiment(experiment_id):
     experiment = get_experiment(experiment_id)
     if not experiment:
         return jsonify({"ok": False, "error": "Experimento no encontrado."}), 404
-    return jsonify({"ok": True, "experiment": experiment.report()})
+    return jsonify({"ok": True, "experiment": next(item for item in list_experiments() if item["id"] == experiment_id)})
 
 
 @app.route("/api/polarity/analyze", methods=["POST"])
