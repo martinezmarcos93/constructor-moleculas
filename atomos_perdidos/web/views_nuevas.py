@@ -246,7 +246,7 @@ function sbExperimentar(id){
     const e=data.experiment;
     const controls=e.controls.map(v=>'<label style="display:block;margin:6px 0">'+v.label+' <input id="exp-'+v.id+'" type="number" min="'+(v.minimum===null?'':v.minimum)+'" max="'+(v.maximum===null?'':v.maximum)+'" step="'+(v.step===null?'':v.step)+'" value="'+(v.minimum===null?'':v.minimum)+'"></label>').join('');
     box.innerHTML='<strong>'+e.title+'</strong><p>'+e.hypothesis_prompt+'</p>'+controls+'<textarea id="sb-observacion" placeholder="Escribe qué observas antes de ejecutar el experimento..." style="width:100%;min-height:70px;margin:8px 0"></textarea>'+
-      '<div class="sb-exp-opciones">'+e.prediction_options.map(x=>'<button class="btn btn-ghost" onclick="sbEjecutarExperimento(\\''+id+'\\',\\''+x+'\\')">'+x.replaceAll('_',' ')+'</button>').join(' ')+'</div>';
+      '<div class="sb-exp-opciones">'+e.prediction_options.map(x=>'<button class="btn btn-ghost" onclick="sbEjecutarExperimento(&#39;'+id+'&#39;,&#39;'+x+'&#39;)">'+x.replaceAll('_',' ')+'</button>').join(' ')+'</div>';
   });
 }
 function sbEjecutarExperimento(id,prediction){
@@ -300,7 +300,7 @@ function sbCargarExperimentos(){
   const box=document.getElementById('sb-experimentos');
   if(!box) return;
   fetch('/api/experiments').then(r=>r.json()).then(data=>{
-    box.innerHTML=data.experiments.map(e=>'<button class="btn btn-ghost" onclick="sbExperimentar(\\''+e.id+'\\')">🧪 '+e.title+'</button>').join(' ');
+    box.innerHTML=data.experiments.map(e=>'<button class="btn btn-ghost" onclick="sbExperimentar(&#39;'+e.id+'&#39;)">🧪 '+e.title+'</button>').join(' ');
   });
 }
 
