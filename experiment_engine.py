@@ -163,6 +163,41 @@ def _structure_from_payload(data: dict) -> MoleculeStructure:
     return structure
 
 
+def optimize_reaction(experiment_id: str, payload: dict) -> dict:
+    """Evalúa el uso de recursos y devuelve eficiencia/recompensa."""
+    if experiment_id != "rendimiento_reaccion":
+        raise ValueError("La optimización solo está disponible para experimentos de reacción.")
+    resources = payload.get("resources", {})
+    if not isinstance(resources, dict):
+        raise ValueError("Los recursos deben ser un objeto.")
+    h2 = float(resources.get("H2", 0))
+    o2 = float(resources.get("O2", 0))
+    if h2 <= 0 or o2 <= 0:
+        raise ValueError("Debes aportar H2 y O2.")
+    result = reaction_quantities(["H2", "O2"], ["H2O"], [h2, o2])
+    theoretical = result["products"][0]["theoretical_moles"]
+    total_input = h2 + o2
+    useful_ratio = theoretical / total_input
+    efficiency = round(min(100.0, useful_ratio * 100), 2)
+    balanced_ratio = h2 / o2
+    ratio_penalty = abs(balanced_ratio - 2.0)
+    resource_score = max(0, round(100 - ratio_penalty * 25))
+    score = round(efficiency * 0.6 + resource_score * 0.4)
+    reward = {
+        "xp": max(5, score // 5),
+        "credits": max(1, score // 10),
+        "rank": "maestro" if score >= 90 else "eficiente" if score >= 70 else "aprendiz",
+    }
+    result.update({
+        "efficiency": efficiency,
+        "resource_score": resource_score,
+        "score": score,
+        "reward": reward,
+        "interpretation": "Una proporción cercana a 2:1 aprovecha mejor H2 y O2 para esta reacción."
+    })
+    return result
+
+
 def run_experiment(experiment_id: str, payload: dict) -> dict:
     spec = next((item for item in EXPERIMENT_SPECS if item.id == experiment_id), None)
     if not spec:
