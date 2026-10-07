@@ -86,6 +86,9 @@ color:var(--muted);cursor:pointer;font-family:monospace;font-size:.8rem}
 .sb-table-box{overflow-x:auto}
 .sb-formula{font-size:1.3rem;color:var(--accent2);font-weight:bold;min-height:1.6em}
 .sb-sel-info{font-size:.8rem;color:var(--muted)}
+#sb-validacion{min-height:1.5em;margin-top:6px}
+#sb-validacion[data-state="ok"]{color:var(--success)}
+#sb-validacion[data-state="error"]{color:var(--error)}
 """
 
 SANDBOX_JS = r"""
@@ -148,7 +151,7 @@ function sbClickAtomo(ev, id){
     if (sbEnlaceOrigen === null){
       sbEnlaceOrigen = id;
     } else if (sbEnlaceOrigen !== id){
-      const ya = sbBonds.some(b => (b[0]===sbEnlaceOrigen && b[1]===id) || (b[1]===sbEnlaceOrigen && b[0]===id));
+      const ya = sbBonds.some(b => (b.a===sbEnlaceOrigen && b.b===id) || (b.b===sbEnlaceOrigen && b.a===id));
       if (!ya){
         sbBonds.push({a:sbEnlaceOrigen, b:id, order:sbBondOrder});
         playPop();
@@ -157,6 +160,7 @@ function sbClickAtomo(ev, id){
       sbEnlaceOrigen = null;
     }
     sbRepintar();
+    sbValidar();
   }
 }
 
@@ -222,7 +226,7 @@ function sbGuardar(){
   sbCalcularFormula(formula => {
     fetch('/sandbox/save', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({atoms: sbAtoms.map(a => ({s:a.sym, x:Math.round(a.x), y:Math.round(a.y)})), bonds: sbBonds})
+      body: JSON.stringify({atoms: sbAtoms.map(a => ({id:a.id, s:a.sym, x:Math.round(a.x), y:Math.round(a.y)})), bonds: sbBonds})
     }).then(r => r.json()).then(data => {
       octetoDecir(data.mensaje);
       (data.toasts || []).forEach((t,i) => setTimeout(() => showToast(t), 400 + i*900));
