@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Modelo mínimo de progresión y dominio de conocimiento."""
 from __future__ import annotations
 from dataclasses import dataclass, field
