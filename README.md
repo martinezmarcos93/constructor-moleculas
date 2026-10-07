@@ -172,3 +172,18 @@ SVG_REGISTRY["H2O2"] = svg_H2O2
 | `/api/reaction/balance` | POST | Balancear una ecuación química |
 | `/api/polarity/analyze` | POST | Analizar polaridad de enlaces/estructuras |
 | `/api/experiments` | GET | Catálogo de experimentos del laboratorio |
+
+
+### Experimentos jugables
+
+El laboratorio ya dispone de un motor de experimentos con cuatro etapas:
+**predicción → ejecución → observación → evaluación**.
+
+Cada experimento puede declarar conceptos, variables, opciones de predicción,
+pasos y resultado calculado. La API `/api/experiments/<id>/run` devuelve el
+resultado químico y una puntuación educativa. Actualmente existen experimentos
+sobre polaridad de H₂O, conservación de la materia y masa molar.
+
+La puntuación no evalúa solamente acertar: registrar una observación forma parte
+del experimento. Esto prepara el sistema para introducir hipótesis, variables
+controlables, evidencias y conclusiones en futuras misiones.
