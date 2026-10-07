@@ -44,3 +44,29 @@ def test_disconnected_structure():
     s.add_bond("0", "1", 1)
     assert not s.is_valid()
     assert any(i.code == "disconnected" for i in s.validate())
+
+
+def test_methane_has_tetrahedral_geometry():
+    s = make("C", "H", "H", "H", "H")
+    for i in range(1, 5):
+        s.add_bond("0", str(i), 1)
+    assert s.is_valid()
+    result = classify_vsepr(s)
+    assert result["geometry"] == "tetraédrica"
+    assert result["lone_pairs"] == 0
+
+
+def test_ammonia_is_trigonal_pyramidal():
+    s = make("N", "H", "H", "H")
+    for i in range(1, 4):
+        s.add_bond("0", str(i), 1)
+    result = classify_vsepr(s)
+    assert s.is_valid()
+    assert result["geometry"] == "piramidal trigonal"
+
+
+def test_ionic_bond_does_not_consume_covalent_valence():
+    s = make("Na", "Cl")
+    s.add_bond("0", "1", 1, kind="ionic")
+    assert s.is_valid()
+    assert s.formula() == "NaCl"
