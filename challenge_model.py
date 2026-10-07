@@ -89,3 +89,50 @@ def build_challenges(molecules: dict[str, list[dict]]) -> list[Challenge]:
 
 def serialize_challenges(molecules: dict[str, list[dict]]) -> list[dict]:
     return [asdict(c) for c in build_challenges(molecules)]
+
+
+def generate_procedural_challenge(molecules: dict[str, list[dict]], difficulty: int = 1, seed: int | None = None) -> dict:
+    """Genera un desafío reproducible a partir del catálogo actual."""
+    import hashlib
+    import random
+
+    entries = [m for level, values in molecules.items() if level != "story" for m in values]
+    if not entries:
+        raise ValueError("No hay moléculas disponibles.")
+    difficulty = max(1, min(5, int(difficulty)))
+    digest = hashlib.sha256(f"{seed}:{difficulty}".encode()).hexdigest()
+    rng = random.Random(int(digest[:12], 16))
+    molecule = rng.choice(entries)
+    concepts = concepts_for(molecule)
+    modes = ["identify", "formula", "atoms"]
+    if molecule.get("svg_key") in {"H2O", "NH3", "CH4", "CO2", "SO2", "SF6", "PCl3"}:
+        modes.append("geometry")
+    mode = modes[(difficulty + rng.randrange(len(modes))) % len(modes)]
+    if mode == "formula":
+        prompt = f"Escribe la fórmula de {molecule['name']}."
+        answer = molecule.get("formula")
+    elif mode == "atoms":
+        prompt = f"¿Cuántos átomos contiene en total {molecule['name']}?"
+        answer = str(len(molecule.get("atoms", [])))
+    elif mode == "geometry":
+        answer, prompt = {
+            "H2O": ("angular", "¿Qué geometría molecular presenta el H₂O?"),
+            "CO2": ("lineal", "¿Qué geometría molecular presenta el CO₂?"),
+            "NH3": ("piramidal trigonal", "¿Qué geometría molecular presenta el NH₃?"),
+            "CH4": ("tetraédrica", "¿Qué geometría molecular presenta el CH₄?"),
+            "SO2": ("angular", "¿Qué geometría molecular presenta el SO₂?"),
+            "SF6": ("octaédrica", "¿Qué geometría molecular presenta el SF₆?"),
+            "PCl3": ("piramidal trigonal", "¿Qué geometría molecular presenta el PCl₃?"),
+        }.get(molecule.get("svg_key"), ("", "Analiza la geometría de la molécula."))
+    else:
+        prompt = f"Identifica la fórmula correcta de {molecule['name']}."
+        answer = molecule.get("formula")
+    return {
+        "id": f"procedural:{molecule['id']}:{mode}:{digest[:8]}",
+        "molecule_id": molecule["id"],
+        "mode": mode,
+        "difficulty": difficulty,
+        "concepts": concepts + (("procedural",) if "procedural" not in concepts else ()),
+        "prompt": prompt,
+        "answer": answer,
+    }
