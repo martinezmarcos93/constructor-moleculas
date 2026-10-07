@@ -31,15 +31,12 @@ def count_elements(symbols: list[str]) -> Counter:
 def format_formula(symbols: list[str]) -> str:
     counts = count_elements(symbols)
     ordered = []
-    if "C" in counts:
-        ordered.append("C")
-        if "H" in counts:
-            ordered.append("H")
-        ordered.extend(sorted(k for k in counts if k not in {"C", "H"}))
-    else:
-        metals = {"Li", "Na", "K", "Mg", "Ca"}
-        ordered.extend(sorted(k for k in counts if k in metals))
-        ordered.extend(sorted(k for k in counts if k not in metals))
+    conventional = ["B", "Si", "C", "Sb", "As", "P", "N", "H",
+                   "Te", "Se", "S", "At", "I", "Br", "Cl", "O", "F"]
+    metals = {"Li", "Na", "K", "Mg", "Ca"}
+    ordered.extend(sorted(k for k in counts if k in metals))
+    ordered.extend(k for k in conventional if k in counts and k not in ordered)
+    ordered.extend(sorted(k for k in counts if k not in ordered))
     subs = "₀₁₂₃₄₅₆₇₈₉"
     return "".join(
         symbol + ("" if counts[symbol] == 1 else "".join(subs[int(d)] for d in str(counts[symbol])))
