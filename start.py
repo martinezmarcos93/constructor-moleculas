@@ -17,7 +17,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from config import HOST, PORT
+from atomos_perdidos.config import HOST, PORT
 
 URL = f"http://{HOST}:{PORT}/"
 PID_FILE = Path(__file__).with_name(".atomos_perdidos.pid")
@@ -62,7 +62,7 @@ def main() -> int:
         sys.executable,
         "-c",
         (
-            "from app import app; "
+            "from atomos_perdidos.app import app; "
             f"app.run(host={HOST!r}, port={PORT}, debug=False, use_reloader=False)"
         ),
     ]
