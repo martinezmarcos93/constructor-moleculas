@@ -24,6 +24,8 @@ from svg_molecules import ATOM_COLORS
 from chemistry_rules import analyze_formula
 from progression import load_progression
 from challenge_model import serialize_challenges
+from curriculum import knowledge_tree
+from adaptive_tutor import tutor_message
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -938,6 +940,12 @@ def api_progression():
 def api_challenges():
     """Catálogo pedagógico generado a partir de las moléculas existentes."""
     return jsonify(serialize_challenges(MOLECULES))
+
+
+@app.route("/api/curriculum")
+def api_curriculum():
+    """Árbol curricular progresivo del juego."""
+    return jsonify(knowledge_tree())
 
 
 # ─────────────────────────────────────────────
