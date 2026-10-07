@@ -13,6 +13,7 @@ REACTIONS = [
         "titulo": "Síntesis del agua",
         "reactivos": "2 H₂ + O₂",
         "producto": "2 H₂O",
+        "balance": {"reactants": ["H2", "O2"], "products": ["H2O"]},
         "dificultad": "Fácil",
         "descripcion": ("El hidrógeno y el oxígeno conviven tranquilos… hasta que "
                         "algo les da el empujón energético. Ordena los pasos para "
@@ -43,6 +44,7 @@ REACTIONS = [
         "titulo": "Proceso Haber-Bosch (amoníaco)",
         "reactivos": "N₂ + 3 H₂",
         "producto": "2 NH₃",
+        "balance": {"reactants": ["N2", "H2"], "products": ["NH3"]},
         "dificultad": "Media",
         "descripcion": ("Fijar el nitrógeno del aire alimenta a media humanidad. "
                         "Ordena los pasos del proceso industrial más importante "
@@ -72,6 +74,7 @@ REACTIONS = [
         "titulo": "Del vino al vinagre (oxidación del etanol)",
         "reactivos": "C₂H₅OH + O₂",
         "producto": "CH₃COOH + H₂O",
+        "balance": {"reactants": ["C2H5OH", "O2"], "products": ["CH3COOH", "H2O"]},
         "dificultad": "Media",
         "descripcion": ("Una botella de vino mal cerrada termina en vinagre. "
                         "Ordena los pasos de esta oxidación biológica de dos etapas."),
@@ -109,7 +112,7 @@ def listar_reacciones() -> list:
     """Resumen de todos los puzles (para la página de listado)."""
     return [{"id": r["id"], "titulo": r["titulo"], "reactivos": r["reactivos"],
              "producto": r["producto"], "dificultad": r["dificultad"],
-             "puntos": r["puntos"]} for r in REACTIONS]
+             "puntos": r["puntos"], "balance": r.get("balance")} for r in REACTIONS]
 
 
 def validar_reaccion(reaction_id: str, orden: list, respuesta: int) -> dict:
