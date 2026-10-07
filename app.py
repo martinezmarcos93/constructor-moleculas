@@ -31,6 +31,7 @@ from vsepr import classify_vsepr
 from stoichiometry import analyze_formula_stoichiometry
 from reaction_engine import balance_equation
 from polarity import molecular_polarity, bond_polarity
+from experiment_engine import get_experiment, list_experiments
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1055,6 +1056,19 @@ def sandbox_formula():
         "plausible": analysis.plausible,
         "elements": analysis.elements,
     })
+
+
+@app.route("/api/experiments", methods=["GET"])
+def api_experiments():
+    return jsonify({"ok": True, "experiments": list_experiments()})
+
+
+@app.route("/api/experiments/<experiment_id>", methods=["GET"])
+def api_experiment(experiment_id):
+    experiment = get_experiment(experiment_id)
+    if not experiment:
+        return jsonify({"ok": False, "error": "Experimento no encontrado."}), 404
+    return jsonify({"ok": True, "experiment": experiment.report()})
 
 
 @app.route("/api/polarity/analyze", methods=["POST"])
