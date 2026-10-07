@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from collections import Counter
 from typing import Iterable
 
-from chemistry_rules import COMMON_VALENCES, IONIC_CHARGES, format_formula
+from atomos_perdidos.core.chemistry_rules import COMMON_VALENCES, IONIC_CHARGES, format_formula
 
 
 @dataclass(frozen=True)

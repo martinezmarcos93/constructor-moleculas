@@ -1,5 +1,5 @@
-from challenge_model import generate_procedural_challenge
-from molecules import MOLECULES
+from atomos_perdidos.game.challenge_model import generate_procedural_challenge
+from atomos_perdidos.data.molecules import MOLECULES
 
 
 def test_procedural_challenge_is_reproducible():

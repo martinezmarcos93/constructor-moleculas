@@ -2,6 +2,7 @@
 
 La regla es simple: cuanto mayor es la maestría, menos directa debe ser la ayuda.
 """
+from __future__ import annotations
 
 def help_level(mastery: int) -> str:
     if mastery < 25:

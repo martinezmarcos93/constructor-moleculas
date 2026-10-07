@@ -10,7 +10,7 @@ from fractions import Fraction
 from math import gcd
 from functools import reduce
 
-from stoichiometry import parse_formula
+from atomos_perdidos.core.stoichiometry import parse_formula
 
 
 def _rref(matrix: list[list[Fraction]]) -> tuple[list[list[Fraction]], list[int]]:

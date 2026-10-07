@@ -1,5 +1,5 @@
-from reaction_engine import balance_equation
-from reactions import REACTIONS
+from atomos_perdidos.core.reaction_engine import balance_equation
+from atomos_perdidos.data.reactions import REACTIONS
 
 
 def test_catalog_reactions_are_atom_conserving():

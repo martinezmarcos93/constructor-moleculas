@@ -7,35 +7,35 @@ from flask import Flask, session, request, jsonify, redirect
 import json, random
 from collections import Counter
 
-from config import SECRET_KEY
+from atomos_perdidos.config import SECRET_KEY
 
-from periodic_table import ELEMENTS, ELEMENT_POSITIONS, CATEGORY_COLORS, CATEGORY_LABELS
-from molecules import GameSession, MOLECULES, LEVEL_LABELS, get_molecule_by_id
-from svg_molecules import get_svg
+from atomos_perdidos.data.periodic_table import ELEMENTS, ELEMENT_POSITIONS, CATEGORY_COLORS, CATEGORY_LABELS
+from atomos_perdidos.data.molecules import GameSession, MOLECULES, LEVEL_LABELS, get_molecule_by_id
+from atomos_perdidos.rendering.svg_molecules import get_svg
 
 # ── Módulos nuevos (v2) ──
-import octeto
-import missions
-import reactions
-import achievements as logros_mod
-import views_nuevas
-from molecule_3d import get_xyz, xyz_from_sandbox
-from svg_molecules import ATOM_COLORS
-from chemistry_rules import analyze_formula
-from progression import load_progression
-from challenge_model import serialize_challenges
-from curriculum import knowledge_tree
-from adaptive_tutor import tutor_message
-from molecular_structure import MoleculeStructure
-from vsepr import classify_vsepr
-from stoichiometry import analyze_formula_stoichiometry
-from reaction_engine import balance_equation
-from polarity import molecular_polarity, bond_polarity
-from experiment_engine import get_experiment, list_experiments, run_experiment, optimize_reaction
-from mission_engine import generate_mission, list_missions, evaluate_mission, mission_hint
-from discovery_engine import discover, snapshot as discovery_snapshot
-from campaign import campaign_snapshot, current_chapter, reward_for_chapter
-from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
+from atomos_perdidos.tutor import octeto
+from atomos_perdidos.game import missions
+from atomos_perdidos.data import reactions
+from atomos_perdidos.game import achievements as logros_mod
+from atomos_perdidos.web import views_nuevas
+from atomos_perdidos.rendering.molecule_3d import get_xyz, xyz_from_sandbox
+from atomos_perdidos.rendering.svg_molecules import ATOM_COLORS
+from atomos_perdidos.core.chemistry_rules import analyze_formula
+from atomos_perdidos.game.progression import load_progression
+from atomos_perdidos.game.challenge_model import serialize_challenges
+from atomos_perdidos.game.curriculum import knowledge_tree
+from atomos_perdidos.tutor.adaptive_tutor import tutor_message
+from atomos_perdidos.core.molecular_structure import MoleculeStructure
+from atomos_perdidos.core.vsepr import classify_vsepr
+from atomos_perdidos.core.stoichiometry import analyze_formula_stoichiometry
+from atomos_perdidos.core.reaction_engine import balance_equation
+from atomos_perdidos.core.polarity import molecular_polarity, bond_polarity
+from atomos_perdidos.lab.experiment_engine import get_experiment, list_experiments, run_experiment, optimize_reaction
+from atomos_perdidos.game.mission_engine import generate_mission, list_missions, evaluate_mission, mission_hint
+from atomos_perdidos.game.discovery_engine import discover, snapshot as discovery_snapshot
+from atomos_perdidos.game.campaign import campaign_snapshot, current_chapter, reward_for_chapter
+from atomos_perdidos.web.ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
 
@@ -1135,7 +1135,7 @@ def api_campaign_reward(chapter_id):
 @app.route("/api/missions", methods=["GET"])
 def api_missions():
     return jsonify({"ok": True, "missions": list_missions(),
-                    "wallet": session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": [])})
+                    "wallet": session.get("laboratory_rewards", {"xp": 0, "credits": 0, "completed": []})})
 
 
 @app.route("/api/missions/generate", methods=["POST"])
@@ -1203,7 +1203,7 @@ def api_record_discovery(mol_id):
 
 @app.route("/api/challenges/generate")
 def api_generate_challenge():
-    from challenge_model import generate_procedural_challenge
+    from atomos_perdidos.game.challenge_model import generate_procedural_challenge
     try:
         challenge = generate_procedural_challenge(
             MOLECULES,
@@ -1217,7 +1217,7 @@ def api_generate_challenge():
 
 @app.route("/api/challenges/evaluate", methods=["POST"])
 def api_evaluate_challenge():
-    from challenge_model import evaluate_challenge
+    from atomos_perdidos.game.challenge_model import evaluate_challenge
     data = request.get_json(silent=True) or {}
     challenge = data.get("challenge")
     if not isinstance(challenge, dict):
@@ -1545,5 +1545,5 @@ def api_molecule3d(mol_id):
 
 
 if __name__ == "__main__":
-    from config import HOST, PORT, DEBUG
+    from atomos_perdidos.config import HOST, PORT, DEBUG
     app.run(debug=DEBUG, host=HOST, port=PORT, use_reloader=DEBUG)

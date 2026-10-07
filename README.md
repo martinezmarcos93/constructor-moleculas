@@ -226,3 +226,27 @@ El laboratorio ahora convierte la estequiometría en misiones jugables reproduci
 - `POST /api/challenges/evaluate` — evalúa el desafío y actualiza maestría/recompensas.
 
 Las métricas de utilización y desperdicio son métricas pedagógicas del juego; no representan rendimiento químico industrial.
+
+
+## Arquitectura del proyecto
+
+El código de aplicación está agrupado en el paquete `atomos_perdidos/`; la raíz conserva únicamente entrypoints, configuración documental y tooling.
+
+```text
+constructor-moleculas/
+├── atomos_perdidos/
+│   ├── core/        # reglas químicas, estructuras, VSEPR, estequiometría y reacciones
+│   ├── data/        # tabla periódica, moléculas y catálogo de reacciones
+│   ├── game/        # campaña, progresión, misiones, desafíos y descubrimientos
+│   ├── lab/         # motor de experimentación
+│   ├── rendering/   # SVG y coordenadas 3D
+│   ├── tutor/       # Octeto y tutor adaptativo
+│   ├── web/         # builders HTML y componentes de interfaz
+│   ├── app.py       # aplicación Flask y rutas
+│   └── config.py    # configuración de ejecución
+├── tests/           # pruebas automatizadas
+├── start.py         # entrypoint recomendado
+└── stop.py          # detención del servidor
+```
+
+El arranque sigue siendo simplemente `python start.py`. Las dependencias entre capas usan imports explícitos de `atomos_perdidos.*`, evitando que el funcionamiento dependa de módulos sueltos en el directorio actual.

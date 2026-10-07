@@ -1,4 +1,4 @@
-from experiment_engine import get_experiment, list_experiments, run_experiment
+from atomos_perdidos.lab.experiment_engine import get_experiment, list_experiments, run_experiment
 
 
 def test_experiment_catalog_is_available():

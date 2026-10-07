@@ -8,10 +8,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-from molecular_structure import MoleculeStructure
-from polarity import molecular_polarity
-from reaction_engine import balance_equation, reaction_quantities
-from stoichiometry import analyze_formula_stoichiometry
+from atomos_perdidos.core.molecular_structure import MoleculeStructure
+from atomos_perdidos.core.polarity import molecular_polarity
+from atomos_perdidos.core.reaction_engine import balance_equation, reaction_quantities
+from atomos_perdidos.core.stoichiometry import analyze_formula_stoichiometry
 
 
 @dataclass(frozen=True)

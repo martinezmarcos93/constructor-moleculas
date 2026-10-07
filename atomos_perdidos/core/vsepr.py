@@ -1,7 +1,7 @@
 """Clasificación VSEPR introductoria para estructuras sencillas."""
 from __future__ import annotations
 
-from molecular_structure import MoleculeStructure
+from atomos_perdidos.core.molecular_structure import MoleculeStructure
 
 # Conteo de dominios electrónicos para los casos cubiertos por el juego.
 # Se prioriza una regla estable y explicable antes que una cobertura total.

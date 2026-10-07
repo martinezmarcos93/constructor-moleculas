@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from periodic_table import ELEMENTS
+from atomos_perdidos.data.periodic_table import ELEMENTS
 
 _SUBSCRIPT = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
 

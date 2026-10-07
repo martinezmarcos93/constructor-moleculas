@@ -11,7 +11,7 @@ import hashlib
 import math
 import re
 
-from reaction_engine import reaction_quantities
+from atomos_perdidos.core.reaction_engine import reaction_quantities
 
 
 @dataclass(frozen=True)

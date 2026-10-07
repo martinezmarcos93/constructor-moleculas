@@ -6,9 +6,9 @@ basada en la geometría VSEPR conocida. No pretende sustituir cálculos cuántic
 from __future__ import annotations
 
 import math
-from periodic_table import ELEMENTS
-from molecular_structure import MoleculeStructure
-from vsepr import classify_vsepr
+from atomos_perdidos.data.periodic_table import ELEMENTS
+from atomos_perdidos.core.molecular_structure import MoleculeStructure
+from atomos_perdidos.core.vsepr import classify_vsepr
 
 
 _BY_SYMBOL = {element["symbol"]: element for element in ELEMENTS.values()}

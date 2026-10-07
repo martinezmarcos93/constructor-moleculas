@@ -8,7 +8,7 @@ de juego existente: cada capítulo apunta a una molécula ya definida en
 molecules.py, y Octeto narra el diálogo antes de cada una.
 """
 
-from molecules import get_molecule_by_id
+from atomos_perdidos.data.molecules import get_molecule_by_id
 
 MISSION = {
     "id": "elixir",

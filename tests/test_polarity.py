@@ -1,5 +1,5 @@
-from molecular_structure import MoleculeStructure
-from polarity import bond_polarity, molecular_polarity
+from atomos_perdidos.core.molecular_structure import MoleculeStructure
+from atomos_perdidos.core.polarity import bond_polarity, molecular_polarity
 
 
 def make_water():
