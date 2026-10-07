@@ -34,6 +34,7 @@ from polarity import molecular_polarity, bond_polarity
 from experiment_engine import get_experiment, list_experiments, run_experiment, optimize_reaction
 from mission_engine import generate_mission, list_missions, evaluate_mission, mission_hint
 from discovery_engine import discover, snapshot as discovery_snapshot
+from campaign import campaign_snapshot, current_chapter, reward_for_chapter
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1107,6 +1108,29 @@ document.getElementById('result').textContent=JSON.stringify(await r.json(),null
 async function hint(id){const r=await fetch('/api/missions/'+encodeURIComponent(id)+'/hint');document.getElementById('result').textContent=JSON.stringify(await r.json(),null,2)}
 load();
 </script></body></html>"""
+
+@app.route("/campaign")
+def campaign_page():
+    return """<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Campaña · Átomos Perdidos</title><style>body{font-family:system-ui;background:#080914;color:#eee;max-width:1000px;margin:auto;padding:24px}.chapter{background:#121426;border:1px solid #2d3150;border-radius:14px;padding:18px;margin:12px 0}.locked{opacity:.45}.tag{display:inline-block;padding:4px 8px;border-radius:8px;background:#242844;font-size:.75rem}</style></head><body><h1>Campaña científica</h1><p id="current"></p><div id="chapters"></div><script>async function load(){const d=await (await fetch('/api/campaign')).json();document.getElementById('current').textContent='Capítulo actual: '+d.current.title;document.getElementById('chapters').innerHTML=d.chapters.map(c=>'<article class="chapter '+(c.unlocked?'':'locked')+'"><h2>'+c.title+'</h2><p>'+c.briefing+'</p><span class="tag">'+(c.unlocked?'DESBLOQUEADO':'BLOQUEADO')+'</span> <span class="tag">Maestría '+c.mastery+'%</span><p>'+c.narrative+'</p></article>').join('')}load()</script></body></html>"""
+
+@app.route("/api/campaign")
+def api_campaign():
+    snapshot = campaign_snapshot(session.get("progression"))
+    return jsonify({"ok": True, **snapshot, "current": current_chapter(session.get("progression"))})
+
+
+@app.route("/api/campaign/reward/<chapter_id>", methods=["POST"])
+def api_campaign_reward(chapter_id):
+    try:
+        chapter = next(c for c in campaign_snapshot(session.get("progression"))["chapters"] if c["id"] == chapter_id)
+        if not chapter["unlocked"]:
+            return jsonify({"ok": False, "error": "Capítulo aún bloqueado."}), 403
+        reward = reward_for_chapter(chapter_id)
+        wallet = _registrar_recompensa(reward, "chapter:" + chapter_id)
+        return jsonify({"ok": True, "reward": reward, "wallet": wallet})
+    except (StopIteration, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
 
 @app.route("/api/missions", methods=["GET"])
 def api_missions():
