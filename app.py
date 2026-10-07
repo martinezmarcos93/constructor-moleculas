@@ -28,6 +28,7 @@ from curriculum import knowledge_tree
 from adaptive_tutor import tutor_message
 from molecular_structure import MoleculeStructure
 from vsepr import classify_vsepr
+from stoichiometry import analyze_formula_stoichiometry
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1052,6 +1053,17 @@ def sandbox_formula():
         "plausible": analysis.plausible,
         "elements": analysis.elements,
     })
+
+
+@app.route("/api/stoichiometry/analyze", methods=["POST"])
+def api_stoichiometry_analyze():
+    """Calcula composición y masa molar de una fórmula."""
+    data = request.get_json() or {}
+    try:
+        result = analyze_formula_stoichiometry(data.get("formula", ""))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, **result})
 
 
 @app.route("/api/structure/validate", methods=["POST"])
