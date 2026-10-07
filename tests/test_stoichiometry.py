@@ -1,6 +1,6 @@
 import pytest
 
-from stoichiometry import analyze_formula_stoichiometry, molar_mass, parse_formula
+from atomos_perdidos.core.stoichiometry import analyze_formula_stoichiometry, molar_mass, parse_formula
 
 
 def test_parse_formula():
