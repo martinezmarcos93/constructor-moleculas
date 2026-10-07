@@ -31,9 +31,9 @@ class Progression:
         unlocked = ["atomos", "tabla_periodica"]
         gates = [("tabla_periodica", "enlaces", 25), ("enlaces", "moleculas", 25),
                  ("moleculas", "geometria", 25), ("geometria", "formulas", 25),
-                 ("formulas", "reacciones", 25), ("reacciones", "organica", 40)]
+                 ("formulas", "reacciones", 25), ("reacciones", "laboratorio", 60), ("reacciones", "organica", 40)]
         for source, target, threshold in gates:
-            if self.mastery[source].value >= threshold:
+            if self.mastery[source].value >= threshold and target not in unlocked:
                 unlocked.append(target)
         return unlocked
     def snapshot(self) -> dict:
