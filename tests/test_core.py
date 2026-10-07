@@ -20,3 +20,19 @@ def test_progression_unlocks_in_order():
     assert p.unlocked_domains() == ["atomos", "tabla_periodica"]
     p.register("tabla_periodica", True, 25)
     assert "enlaces" in p.unlocked_domains()
+
+
+def test_challenges_include_geometry_mode():
+    from challenge_model import build_challenges
+    molecules = {
+        "medium": [{
+            "id": "H2O",
+            "name": "Agua",
+            "atoms": ["H", "H", "O"],
+            "svg_key": "H2O",
+        }]
+    }
+    challenges = build_challenges(molecules)
+    geometry = next(c for c in challenges if c.mode == "geometry")
+    assert geometry.answer == "angular"
+    assert "molecular_geometry" in geometry.concepts
