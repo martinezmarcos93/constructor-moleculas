@@ -1191,6 +1191,26 @@ def api_generate_challenge():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/challenges/evaluate", methods=["POST"])
+def api_evaluate_challenge():
+    from challenge_model import evaluate_challenge
+    data = request.get_json(silent=True) or {}
+    challenge = data.get("challenge")
+    if not isinstance(challenge, dict):
+        return jsonify({"ok": False, "error": "Falta el desafío."}), 400
+    try:
+        result = evaluate_challenge(challenge, data.get("answer", ""))
+        domain = "geometria" if challenge.get("mode") == "geometry" else "moleculas"
+        _registrar_progreso(domain, result["correct"], 3 if result["correct"] else 1)
+        if result["correct"]:
+            reward = {"xp": 5 + int(challenge.get("difficulty", 1)), "credits": 1}
+            result["wallet"] = _registrar_recompensa(reward, "challenge:" + str(challenge.get("id", "")))
+        result["unlocked"] = load_progression(session.get("progression")).unlocked_domains()
+        return jsonify({"ok": True, "result": result})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/api/experiments", methods=["GET"])
 def api_experiments():
     return jsonify({"ok": True, "experiments": list_experiments()})
