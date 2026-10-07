@@ -101,7 +101,7 @@ EXPERIMENT_SPECS = (
         ("Compara las fórmulas.", "Calcula sus masas molares.", "Comprueba tu predicción."),
         "estequiometria",
         ("primera_mayor", "segunda_mayor"),
-        "primera_mayor",
+        "segunda_mayor",
     ),
 )
 
