@@ -1097,12 +1097,14 @@ def check_reaction():
     resultado = reactions.validar_reaccion(
         data.get("id", ""), data.get("orden", []), data.get("respuesta", -1))
     if not resultado.get("ok"):
+        _registrar_progreso("reacciones", False, 1)
         return jsonify({"correcto": False,
                         "mensaje": "🐙 Esa reacción no está en mis apuntes…",
                         "mensaje_texto": resultado.get("error", "Error")}), 400
 
     toasts = []
     if resultado["correcto"]:
+        _registrar_progreso("reacciones", True, min(resultado["puntos"], 5))
         hechas = session.get("reactions_done", [])
         if data["id"] not in hechas:
             session["reactions_done"] = hechas + [data["id"]]
@@ -1112,6 +1114,7 @@ def check_reaction():
         mensaje = octeto.get_octeto_message("reaccion_correcta")
         texto = f"✅ ¡Correcto! +{resultado['puntos']} puntos."
     else:
+        _registrar_progreso("reacciones", False, 1)
         mensaje = octeto.get_octeto_message("reaccion_incorrecta")
         texto = f"❌ {resultado['detalle']}"
 
