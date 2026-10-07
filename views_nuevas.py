@@ -136,6 +136,7 @@ function sbClickLienzo(ev){
   playPop();
   sbAvisarValencia(atomo);
   sbRepintar();
+  sbValidar();
 }
 
 function sbClickAtomo(ev, id){
@@ -145,6 +146,7 @@ function sbClickAtomo(ev, id){
     sbAtoms = sbAtoms.filter(a => a.id !== id);
     sbBonds = sbBonds.filter(b => b.a !== id && b.b !== id);
     sbRepintar();
+    sbValidar();
     return;
   }
   if (sbModo === 'enlazar'){
