@@ -251,7 +251,8 @@ function sbExperimentar(id){
 function sbEjecutarExperimento(id,prediction){
   const box=document.getElementById('sb-experimento');
   const obs=(document.getElementById('sb-observacion')||{}).value||'';
-  const payload={prediction,observations:obs.trim()?[obs.trim()]:[]};
+  const payload={prediction,observations:obs.trim()?[obs.trim()]:[],variables:{}};
+  ['temperature','reactant_amount','oxygen_amount','first_amount','second_amount'].forEach(k=>{const el=document.getElementById('exp-'+k);if(el&&el.value!=='')payload.variables[k]=Number(el.value);});
   if(id==='polaridad_agua'){
     payload.atoms=sbAtoms.map(a=>({id:String(a.id),symbol:a.sym}));
     payload.bonds=sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}));
