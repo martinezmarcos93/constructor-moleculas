@@ -115,3 +115,50 @@ def _conserved_elements(parsed: list[dict[str, int]], coefficients: list[int], s
         if left != right:
             return False
     return True
+
+
+def reaction_quantities(reactants: list[str], products: list[str], amounts: list[float]) -> dict:
+    """Calcula reactivo limitante y producción teórica a partir de cantidades en moles."""
+    if len(amounts) != len(reactants):
+        raise ValueError("Debe existir una cantidad para cada reactivo.")
+    if any(float(value) <= 0 for value in amounts):
+        raise ValueError("Las cantidades deben ser mayores que cero.")
+
+    balanced = balance_equation(reactants, products)
+    coefficients = balanced["coefficients"]
+    reactant_coeffs = coefficients[:len(reactants)]
+    product_coeffs = coefficients[len(reactants):]
+
+    ratios = [Fraction(str(amount)) / coefficient
+              for amount, coefficient in zip(amounts, reactant_coeffs)]
+    limiting_index = min(range(len(ratios)), key=ratios.__getitem__)
+    extent = ratios[limiting_index]
+
+    consumed = [float(extent * coefficient) for coefficient in reactant_coeffs]
+    remaining = [max(0.0, float(amount) - used)
+                 for amount, used in zip(amounts, consumed)]
+    produced = [float(extent * coefficient) for coefficient in product_coeffs]
+
+    return {
+        "equation": balanced["equation"],
+        "coefficients": coefficients,
+        "reactants": [
+            {"formula": formula, "initial_moles": float(amount),
+             "coefficient": coefficient, "consumed_moles": consumed[i],
+             "remaining_moles": remaining[i]}
+            for i, (formula, amount, coefficient) in enumerate(
+                zip(reactants, amounts, reactant_coeffs)
+            )
+        ],
+        "products": [
+            {"formula": formula, "coefficient": coefficient,
+             "theoretical_moles": produced[i]}
+            for i, (formula, coefficient) in enumerate(zip(products, product_coeffs))
+        ],
+        "limiting_reagent": reactants[limiting_index],
+        "excess_reagents": [
+            reactants[i] for i, value in enumerate(remaining) if value > 1e-9
+        ],
+        "reaction_extent": float(extent),
+        "conserved": balanced["conserved"],
+    }
