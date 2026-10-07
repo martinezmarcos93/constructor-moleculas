@@ -86,9 +86,10 @@ class ExperimentRun:
                     raise ValueError(f"{control.label} está por encima del máximo.")
                 self.variables[control.id] = numeric
 
-    def evaluate(self, result: dict) -> dict:
+    def evaluate(self, result: dict, expected_prediction: str | None = None) -> dict:
         self.result = deepcopy(result)
-        prediction_ok = self.prediction == self.spec.expected_prediction
+        expected = expected_prediction or self.spec.expected_prediction
+        prediction_ok = self.prediction == expected
         observation_ok = bool(self.observations)
         variable_ok = bool(self.variables)
         self.score = (50 if prediction_ok else 15) + (30 if observation_ok else 0) + (20 if variable_ok else 0)
@@ -197,7 +198,8 @@ def run_experiment(experiment_id: str, payload: dict) -> dict:
             "El reactivo limitante fija el máximo teórico de producto; "
             "el reactivo restante queda en exceso."
         )
-        return run.evaluate(result)
+        expected = "reactivo_1" if result["limiting_reagent"] == "H2" else "reactivo_2"
+        return run.evaluate(result, expected_prediction=expected)
 
     if experiment_id == "masa_molar":
         first = analyze_formula_stoichiometry("H₂O")
