@@ -29,6 +29,7 @@ from adaptive_tutor import tutor_message
 from molecular_structure import MoleculeStructure
 from vsepr import classify_vsepr
 from stoichiometry import analyze_formula_stoichiometry
+from reaction_engine import balance_equation
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1053,6 +1054,20 @@ def sandbox_formula():
         "plausible": analysis.plausible,
         "elements": analysis.elements,
     })
+
+
+@app.route("/api/reaction/balance", methods=["POST"])
+def api_reaction_balance():
+    """Balancea una ecuación usando conservación de átomos."""
+    data = request.get_json() or {}
+    try:
+        result = balance_equation(
+            list(data.get("reactants", [])),
+            list(data.get("products", [])),
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, **result})
 
 
 @app.route("/api/stoichiometry/analyze", methods=["POST"])
