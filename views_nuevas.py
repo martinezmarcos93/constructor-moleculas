@@ -351,7 +351,7 @@ def render_sandbox_page(octeto_msg: str, frases_valencia: list,
     """Página del modo sandbox (libertad creativa)."""
     tabla = build_mini_table_html()
     body = f"""
-<h2 style="margin-bottom:4px">🧪 Sandbox — Libertad creativa</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><a class="btn btn-ghost" href="/missions">🎯 Misiones</a><a class="btn btn-ghost" href="/reactions">⚗️ Reacciones</a></div>\n<h2 style="margin-bottom:4px">🧪 Sandbox — Libertad creativa</h2>
 <p style="color:var(--muted);font-size:.8rem;margin-bottom:12px">
 Elige un elemento, haz clic en el lienzo para colocarlo. Los átomos cercanos se
 enlazan solos; usa la herramienta <b>Enlazar</b> para unirlos a mano.
