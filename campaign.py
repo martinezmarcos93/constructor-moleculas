@@ -27,9 +27,9 @@ CHAPTERS = (
     CampaignChapter("capitulo-2", "El mapa de los elementos", "Aprende a leer el mapa periódico.", "tabla_periodica", 25, ("fabrica_agua",), 20, 3, "La tabla se convierte en un mapa de propiedades."),
     CampaignChapter("capitulo-3", "Arquitectos de enlaces", "Haz encajar fragmentos respetando sus valencias.", "enlaces", 25, ("fabrica_agua",), 25, 4, "Descubres que la estructura nace de los enlaces."),
     CampaignChapter("capitulo-4", "La cámara molecular", "Construye estructuras estables y descubre su geometría.", "moleculas", 25, ("fabrica_agua",), 30, 5, "Una molécula desconocida aparece en el visor."),
-    CampaignChapter("capitulo-5", "Materia bajo presión", "Calcula cuánto material necesitas.", "formulas", 25, ("fabrica_agua", "planta_amoniaco"), 40, 7, "Cada recurso desperdiciado tiene un coste."),
-    CampaignChapter("capitulo-6", "El reactor", "Balancea, predice y produce sin desperdicio.", "reacciones", 25, ("fabrica_agua", "planta_amoniaco"), 50, 10, "Has dejado de resolver ejercicios: ahora diriges un reactor."),
-    CampaignChapter("capitulo-7", "Laboratorio abierto", "Diseña, prueba y optimiza estrategias.", "laboratorio", 60, ("fabrica_agua", "planta_amoniaco"), 75, 15, "El laboratorio deja de decirte qué hacer."),
+    CampaignChapter("capitulo-5", "Materia bajo presión", "Calcula cuánto material necesitas.", "formulas", 25, ("fabrica_agua", "planta_amoniaco", "neutralizacion"), 40, 7, "Cada recurso desperdiciado tiene un coste."),
+    CampaignChapter("capitulo-6", "El reactor", "Balancea, predice y produce sin desperdicio.", "reacciones", 25, ("fabrica_agua", "planta_amoniaco", "horno_metano", "calcinacion"), 50, 10, "Has dejado de resolver ejercicios: ahora diriges un reactor."),
+    CampaignChapter("capitulo-7", "Laboratorio abierto", "Diseña, prueba y optimiza estrategias.", "laboratorio", 60, ("fabrica_agua", "planta_amoniaco", "horno_metano", "neutralizacion"), 75, 15, "El laboratorio deja de decirte qué hacer."),
 )
 
 
