@@ -194,3 +194,10 @@ El jugador puede cambiar cantidades de reactivos, cantidades de sustancia o
 condiciones registradas, ejecutar el experimento y recibir evidencia calculada.
 La intención es que la pregunta pase de «¿cuál es la respuesta?» a
 «¿qué ocurre si modifico esta variable?».
+
+
+El laboratorio de reacciones permite seleccionar una reacción educativa, modificar
+las cantidades iniciales de los reactivos y calcular automáticamente el balance,
+el reactivo limitante, los reactivos en exceso y el rendimiento teórico en moles.
+La misma mecánica puede reutilizarse en misiones donde el jugador deba optimizar
+recursos o elegir proporciones de reactivos.
