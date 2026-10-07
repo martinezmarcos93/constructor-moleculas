@@ -26,6 +26,8 @@ from progression import load_progression
 from challenge_model import serialize_challenges
 from curriculum import knowledge_tree
 from adaptive_tutor import tutor_message
+from molecular_structure import MoleculeStructure
+from vsepr import classify_vsepr
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1050,6 +1052,33 @@ def sandbox_formula():
         "plausible": analysis.plausible,
         "elements": analysis.elements,
     })
+
+
+@app.route("/api/structure/validate", methods=["POST"])
+def api_structure_validate():
+    """Valida una estructura explícita de átomos y enlaces."""
+    data = request.get_json() or {}
+    structure = MoleculeStructure()
+    try:
+        for atom in data.get("atoms", [])[:60]:
+            structure.add_atom(str(atom["id"]), atom["symbol"])
+        for bond in data.get("bonds", [])[:120]:
+            structure.add_bond(
+                str(bond["a"]),
+                str(bond["b"]),
+                int(bond.get("order", 1)),
+                str(bond.get("kind", "covalent")),
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    summary = structure.summary()
+    summary["ok"] = True
+    summary["vsepr"] = classify_vsepr(structure) if structure.is_valid() else {
+        "supported": False,
+        "message": "Primero corrige la estructura para estudiar su geometría.",
+    }
+    return jsonify(summary)
 
 
 @app.route("/sandbox/save", methods=["POST"])
