@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import hashlib
 import math
+import re
 
 from reaction_engine import reaction_quantities
 
