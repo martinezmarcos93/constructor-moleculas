@@ -71,7 +71,7 @@ def generate_mission(mission_id: str | None = None, difficulty: int = 1, seed: s
             raise ValueError("Misión desconocida.")
     template = MISSION_TEMPLATES[index]
 
-    exact = re.search(r"-d(\\d+)-(\\d+)$", str(mission_id or ""))
+    exact = re.search(r"-d(\d+)-(\d+)$", str(mission_id or ""))
     if exact:
         difficulty = max(1, min(5, int(exact.group(1))))
         multiplier = int(exact.group(2))
