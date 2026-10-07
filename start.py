@@ -17,8 +17,8 @@ import time
 import webbrowser
 from pathlib import Path
 
-HOST = "127.0.0.1"
-PORT = 5000
+from config import HOST, PORT
+
 URL = f"http://{HOST}:{PORT}/"
 PID_FILE = Path(__file__).with_name(".atomos_perdidos.pid")
 
