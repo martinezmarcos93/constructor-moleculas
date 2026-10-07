@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Campaña científica de Átomos Perdidos.
 
 Orquesta progresión, misiones y descubrimientos sin duplicar reglas químicas.
