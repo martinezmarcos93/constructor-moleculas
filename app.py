@@ -30,6 +30,7 @@ from molecular_structure import MoleculeStructure
 from vsepr import classify_vsepr
 from stoichiometry import analyze_formula_stoichiometry
 from reaction_engine import balance_equation
+from polarity import molecular_polarity, bond_polarity
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
@@ -1054,6 +1055,26 @@ def sandbox_formula():
         "plausible": analysis.plausible,
         "elements": analysis.elements,
     })
+
+
+@app.route("/api/polarity/analyze", methods=["POST"])
+def api_polarity_analyze():
+    """Analiza polaridad de enlaces y de una estructura molecular."""
+    data = request.get_json() or {}
+    if data.get("symbol_a") and data.get("symbol_b"):
+        try:
+            return jsonify({"ok": True, **bond_polarity(data["symbol_a"], data["symbol_b"])})
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+    structure = MoleculeStructure()
+    try:
+        for atom in data.get("atoms", [])[:60]:
+            structure.add_atom(str(atom["id"]), atom["symbol"])
+        for bond in data.get("bonds", [])[:120]:
+            structure.add_bond(str(bond["a"]), str(bond["b"]), int(bond.get("order", 1)), str(bond.get("kind", "covalent")))
+        return jsonify({"ok": True, **molecular_polarity(structure)})
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @app.route("/api/reaction/balance", methods=["POST"])
