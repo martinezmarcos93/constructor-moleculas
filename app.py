@@ -875,9 +875,11 @@ def place_element():
             session.modified = True
             # v2: registrar en la galería y comprobar logros
             _agregar_a_galeria({"tipo": "desafio", "id": mol["id"]})
+            discovered, first_discovery = discover(session.get("discoveries", []), mol)
+            session["discoveries"] = discovered
             _desbloquear_logros({"molecula_completada": True,
                                  "hints_usados": hints_used})
-            return jsonify({"reload": True, "completed": True})
+            return jsonify({"reload": True, "completed": True, "first_discovery": first_discovery})
         return jsonify({"reload": True})
     else:
         _registrar_progreso("moleculas", False, 1)
