@@ -1203,7 +1203,7 @@ def api_record_discovery(mol_id):
 
 @app.route("/api/challenges/generate")
 def api_generate_challenge():
-    from challenge_model import generate_procedural_challenge
+    from atomos_perdidos.game.challenge_model import generate_procedural_challenge
     try:
         challenge = generate_procedural_challenge(
             MOLECULES,
@@ -1217,7 +1217,7 @@ def api_generate_challenge():
 
 @app.route("/api/challenges/evaluate", methods=["POST"])
 def api_evaluate_challenge():
-    from challenge_model import evaluate_challenge
+    from atomos_perdidos.game.challenge_model import evaluate_challenge
     data = request.get_json(silent=True) or {}
     challenge = data.get("challenge")
     if not isinstance(challenge, dict):
@@ -1545,5 +1545,5 @@ def api_molecule3d(mol_id):
 
 
 if __name__ == "__main__":
-    from config import HOST, PORT, DEBUG
+    from atomos_perdidos.config import HOST, PORT, DEBUG
     app.run(debug=DEBUG, host=HOST, port=PORT, use_reloader=DEBUG)
