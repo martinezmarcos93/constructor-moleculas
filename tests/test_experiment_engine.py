@@ -70,3 +70,25 @@ def test_observation_is_required_for_full_score():
 
 def test_unknown_experiment():
     assert get_experiment("does-not-exist") is None
+
+
+def test_molar_mass_experiment_responds_to_quantity_variables():
+    result = run_experiment(
+        "masa_molar",
+        {
+            "prediction": "segunda_mayor",
+            "observations": ["La cantidad cambia la masa total."],
+            "variables": {"first_amount": 1, "second_amount": 1},
+        },
+    )
+    assert result["result"]["greater"] == "second"
+    assert result["result"]["total_masses"]["CO₂"] > result["result"]["total_masses"]["H₂O"]
+
+
+def test_experiment_rejects_out_of_range_variable():
+    import pytest
+    with pytest.raises(ValueError):
+        run_experiment(
+            "conservacion_materia",
+            {"variables": {"reactant_amount": 99}},
+        )
