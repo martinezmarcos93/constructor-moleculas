@@ -1,4 +1,4 @@
-from discovery_engine import discover, snapshot
+from atomos_perdidos.game.discovery_engine import discover, snapshot
 
 
 def test_discovery_is_idempotent():
