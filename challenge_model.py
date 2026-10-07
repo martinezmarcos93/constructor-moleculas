@@ -17,6 +17,7 @@ class Challenge:
     difficulty: int
     concepts: tuple[str, ...]
     prompt: str
+    answer: str | None = None
 
 
 def concepts_for(molecule: dict) -> tuple[str, ...]:
@@ -63,6 +64,26 @@ def build_challenges(molecules: dict[str, list[dict]]) -> list[Challenge]:
                     prompt=f"Identifica la fórmula correcta de {molecule['name']}.",
                 ),
             ])
+            geometry = {
+                "H2O": ("angular", "¿Qué geometría molecular presenta el agua?"),
+                "CO2": ("lineal", "¿Qué geometría molecular presenta el CO₂?"),
+                "NH3": ("piramidal trigonal", "¿Qué geometría molecular presenta el NH₃?"),
+                "CH4": ("tetraédrica", "¿Qué geometría molecular presenta el CH₄?"),
+                "SO2": ("angular", "¿Qué geometría molecular presenta el SO₂?"),
+                "SF6": ("octaédrica", "¿Qué geometría molecular presenta el SF₆?"),
+                "PCl3": ("piramidal trigonal", "¿Qué geometría molecular presenta el PCl₃?"),
+            }.get(molecule.get("svg_key"))
+            if geometry:
+                answer, prompt = geometry
+                challenges.append(Challenge(
+                    id=f"{molecule['id']}:geometry",
+                    molecule_id=molecule["id"],
+                    mode="geometry",
+                    difficulty=min(5, base + 2),
+                    concepts=concepts + ("molecular_geometry",),
+                    prompt=prompt,
+                    answer=answer,
+                ))
     return challenges
 
 
