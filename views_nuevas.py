@@ -91,7 +91,8 @@ color:var(--muted);cursor:pointer;font-family:monospace;font-size:.8rem}
 SANDBOX_JS = r"""
 // ═══ Estado del sandbox ═══
 let sbAtoms = [];            // {id, sym, x, y, valence}
-let sbBonds = [];            // [idA, idB]
+let sbBonds = [];            // {a:idA,b:idB,order:1}
+let sbBondOrder = 1;
 let sbNextId = 1;
 let sbElemento = null;       // elemento seleccionado en la mini-tabla
 let sbModo = 'colocar';      // colocar | enlazar | borrar
@@ -139,7 +140,7 @@ function sbClickAtomo(ev, id){
   const atomo = sbAtoms.find(a => a.id === id);
   if (sbModo === 'borrar'){
     sbAtoms = sbAtoms.filter(a => a.id !== id);
-    sbBonds = sbBonds.filter(b => b[0] !== id && b[1] !== id);
+    sbBonds = sbBonds.filter(b => b.a !== id && b.b !== id);
     sbRepintar();
     return;
   }
@@ -149,7 +150,7 @@ function sbClickAtomo(ev, id){
     } else if (sbEnlaceOrigen !== id){
       const ya = sbBonds.some(b => (b[0]===sbEnlaceOrigen && b[1]===id) || (b[1]===sbEnlaceOrigen && b[0]===id));
       if (!ya){
-        sbBonds.push([sbEnlaceOrigen, id]);
+        sbBonds.push({a:sbEnlaceOrigen, b:id, order:sbBondOrder});
         playPop();
         sbAvisarValencia(atomo);
       }
@@ -159,9 +160,13 @@ function sbClickAtomo(ev, id){
   }
 }
 
-function sbEnlacesDe(id){ return sbBonds.filter(b => b[0]===id || b[1]===id).length; }
+function sbEnlacesDe(id){ return sbBonds.filter(b => b.a===id || b.b===id).reduce((n,b) => n + b.order, 0); }
+function sbSetBondOrder(order){ sbBondOrder=order; document.querySelectorAll('.sb-order').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.order)===order)); }
+function sbCiclarEnlace(ev,a,b){ ev.stopPropagation(); const bond=sbBonds.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a)); if(bond){bond.order=bond.order>=3?1:bond.order+1; sbValidar(); sbRepintar();} }
 
 // Octeto avisa (pero no impide) si se supera la valencia
+function sbValidar(){ fetch('/api/structure/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({atoms:sbAtoms.map(a=>({id:String(a.id),symbol:a.sym})),bonds:sbBonds.map(b=>({a:String(b.a),b:String(b.b),order:b.order}))})}).then(r=>r.json()).then(data=>{const box=document.getElementById('sb-validacion');if(!box)return;if(!data.ok){box.textContent='⚠️ '+data.error;return;}const e=(data.issues||[]).find(i=>i.severity==='error');box.textContent=data.valid?'✓ Estructura válida · '+data.formula+(data.vsepr&&data.vsepr.supported?' · '+data.vsepr.geometry:''):'✕ '+(e?e.message:'Estructura por corregir.');box.dataset.state=data.valid?'ok':'error';}).catch(()=>{}); }
+
 function sbAvisarValencia(atomo){
   if (atomo && atomo.valence > 0 && sbEnlacesDe(atomo.id) > atomo.valence){
     octetoDecir(FRASES_VALENCIA[Math.floor(Math.random()*FRASES_VALENCIA.length)]);
@@ -174,9 +179,9 @@ function sbRepintar(){
   lienzo.querySelectorAll('.sb-atom').forEach(n => n.remove());
   const svg = document.getElementById('sb-bonds');
   svg.innerHTML = sbBonds.map(b => {
-    const a1 = sbAtoms.find(a => a.id === b[0]), a2 = sbAtoms.find(a => a.id === b[1]);
+    const a1 = sbAtoms.find(a => a.id === b.a), a2 = sbAtoms.find(a => a.id === b.b);
     if (!a1 || !a2) return '';
-    return '<line x1="'+a1.x+'" y1="'+a1.y+'" x2="'+a2.x+'" y2="'+a2.y+'" stroke="#8888aa" stroke-width="3" stroke-linecap="round"/>';
+    return Array.from({length:b.order},(_,k)=>{const dx=a2.x-a1.x,dy=a2.y-a1.y,len=Math.hypot(dx,dy),off=(k-(b.order-1)/2)*5,ox=-dy/len*off,oy=dx/len*off;return '<line x1="'+(a1.x+ox)+'" y1="'+(a1.y+oy)+'" x2="'+(a2.x+ox)+'" y2="'+(a2.y+oy)+'" stroke="#8888aa" stroke-width="3" stroke-linecap="round"/>';}).join('');
   }).join('');
   sbAtoms.forEach(a => {
     const d = document.createElement('div');
@@ -217,7 +222,7 @@ function sbGuardar(){
   sbCalcularFormula(formula => {
     fetch('/sandbox/save', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({atoms: sbAtoms.map(a => ({s:a.sym, x:Math.round(a.x), y:Math.round(a.y)}))})
+      body: JSON.stringify({atoms: sbAtoms.map(a => ({s:a.sym, x:Math.round(a.x), y:Math.round(a.y)})), bonds: sbBonds})
     }).then(r => r.json()).then(data => {
       octetoDecir(data.mensaje);
       (data.toasts || []).forEach((t,i) => setTimeout(() => showToast(t), 400 + i*900));
@@ -257,6 +262,9 @@ Aquí la valencia es solo una sugerencia (Octeto protestará igual).</p>
     <div class="sb-tools">
       <button class="sb-tool active" data-modo="colocar" onclick="sbSetModo('colocar')">⚛️ Colocar</button>
       <button class="sb-tool" data-modo="enlazar" onclick="sbSetModo('enlazar')">🔗 Enlazar</button>
+      <button class="sb-tool sb-order active" data-order="1" onclick="sbSetBondOrder(1)">— Simple</button>
+      <button class="sb-tool sb-order" data-order="2" onclick="sbSetBondOrder(2)">═ Doble</button>
+      <button class="sb-tool sb-order" data-order="3" onclick="sbSetBondOrder(3)">≡ Triple</button>
       <button class="sb-tool" data-modo="borrar" onclick="sbSetModo('borrar')">🧽 Borrar átomo</button>
       <span class="sb-sel-info" id="sb-contador">0 átomos · 0 enlaces</span>
     </div>
@@ -270,6 +278,7 @@ Aquí la valencia es solo una sugerencia (Octeto protestará igual).</p>
       <button class="btn btn-ghost" onclick="sbVer3D()">🔭 Ver en 3D</button>
     </div>
     <div class="sb-formula" id="sb-formula"></div>
+    <div class="sb-sel-info" id="sb-validacion"></div>
   </div>
 
   <div class="sb-panel">
