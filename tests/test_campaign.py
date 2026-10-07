@@ -1,4 +1,4 @@
-from campaign import campaign_snapshot, current_chapter, reward_for_chapter
+from atomos_perdidos.game.campaign import campaign_snapshot, current_chapter, reward_for_chapter
 
 
 def test_campaign_starts_at_first_chapter():
