@@ -210,3 +210,19 @@ cantidades limitadas de reactivos, debe razonar sobre la proporción estequiomé
 y buscar una configuración que minimice desperdicios. El motor devuelve utilización
 de recursos, puntuación, XP, créditos y rango. La maestría en reacciones puede
 desbloquear el dominio de laboratorio.
+
+### Misiones procedurales y descubrimiento
+
+El laboratorio ahora convierte la estequiometría en misiones jugables reproducibles. Cada misión define objetivo de producto, presupuesto de reactivos, tolerancia de desperdicio, utilización mínima y recompensa. Endpoints principales:
+
+- `GET /api/missions` — catálogo de misiones.
+- `POST /api/missions/generate` — genera una misión por dificultad/semilla.
+- `POST /api/missions/<id>/run` — ejecuta y puntúa una estrategia.
+- `GET /api/missions/<id>/hint` — pista conceptual.
+- `GET /missions` — panel jugable de misiones.
+- `GET /api/discovery` — colección descubierta.
+- `POST /api/discovery/record/<mol_id>` — registra un descubrimiento.
+- `GET /api/challenges/generate` — desafío pedagógico procedural.
+- `POST /api/challenges/evaluate` — evalúa el desafío y actualiza maestría/recompensas.
+
+Las métricas de utilización y desperdicio son métricas pedagógicas del juego; no representan rendimiento químico industrial.
