@@ -7,6 +7,8 @@ from flask import Flask, session, request, jsonify, redirect
 import json, random
 from collections import Counter
 
+from config import SECRET_KEY
+
 from periodic_table import ELEMENTS, ELEMENT_POSITIONS, CATEGORY_COLORS, CATEGORY_LABELS
 from molecules import GameSession, MOLECULES, LEVEL_LABELS, get_molecule_by_id
 from svg_molecules import get_svg
@@ -19,13 +21,14 @@ import achievements as logros_mod
 import views_nuevas
 from molecule_3d import get_xyz, xyz_from_sandbox
 from svg_molecules import ATOM_COLORS
+from chemistry_rules import analyze_formula
 from ui_common import (CDN_3DMOL, CDN_CONFETTI, WIDGETS_CSS, SHARED_JS, MOL3D_JS,
                        build_octeto_html, build_mol3d_modal_html,
                        build_pending_toasts_js, build_page)
 
 app = Flask(__name__)
 # Clave fija SOLO para desarrollo (la sesión guarda progreso, no datos sensibles)
-app.secret_key = "atomos_perdidos_secret_2025"
+app.secret_key = SECRET_KEY
 
 # La historia se registra como pseudo-nivel: reutiliza TODO el motor del juego
 MOLECULES["story"] = missions.obtener_moleculas_historia()
@@ -971,22 +974,40 @@ def sandbox_formula():
     simbolos = data.get("simbolos", [])
     if not simbolos:
         return jsonify({"formula": "", "mensaje": "🐙 No hay átomos que contar."})
-    formula = calcular_formula(simbolos)
-    # ¿Coincide con alguna molécula conocida del juego? Octeto lo celebra.
-    conocida = None
-    for level_mols in MOLECULES.values():
-        for m in level_mols:
-            if calcular_formula(m["atoms"]) == formula:
-                conocida = m
-                break
-        if conocida:
-            break
+    known_formulas = {
+        m["formula"] for level_mols in MOLECULES.values()
+        for m in level_mols
+    }
+    analysis = analyze_formula(simbolos, known_formulas)
+    formula = analysis.formula
+
+    conocida = next(
+        (
+            m for level_mols in MOLECULES.values()
+            for m in level_mols
+            if m["formula"] == formula
+        ),
+        None,
+    )
     if conocida:
-        mensaje = (f"🐙 ¡Eso es {conocida['name']} ({conocida['formula']})! "
-                   f"La reconocería con los ocho ojos cerrados.")
+        mensaje = (
+            f"🐙 ¡Eso es {conocida['name']} ({conocida['formula']})! "
+            f"La reconocería con los ocho ojos cerrados."
+        )
+    elif not analysis.plausible:
+        mensaje = f"🐙 {analysis.message} La fórmula calculada es {formula}."
     else:
-        mensaje = f"🐙 Fórmula calculada: {formula}. No la tengo en mis apuntes… ¡química de vanguardia!"
-    return jsonify({"formula": formula, "mensaje": mensaje})
+        mensaje = (
+            f"🐙 Fórmula calculada: {formula}. "
+            f"{analysis.message}"
+        )
+    return jsonify({
+        "formula": formula,
+        "mensaje": mensaje,
+        "known": analysis.known,
+        "plausible": analysis.plausible,
+        "elements": analysis.elements,
+    })
 
 
 @app.route("/sandbox/save", methods=["POST"])
