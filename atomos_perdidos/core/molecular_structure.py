@@ -11,6 +11,9 @@ from collections import Counter
 from typing import Iterable
 
 from atomos_perdidos.core.chemistry_rules import COMMON_VALENCES, IONIC_CHARGES, format_formula
+from atomos_perdidos.data.periodic_table import ELEMENTS
+
+_VALID_SYMBOLS = {element["symbol"] for element in ELEMENTS.values()}
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,8 @@ class MoleculeStructure:
         symbol = symbol.strip().capitalize()
         if not symbol:
             raise ValueError("El símbolo del átomo no puede estar vacío.")
+        if symbol not in _VALID_SYMBOLS:
+            raise ValueError(f"Símbolo químico desconocido: {symbol}.")
         if atom_id in self.atoms:
             raise ValueError(f"Ya existe el átomo {atom_id}.")
         self.atoms[atom_id] = AtomNode(atom_id, symbol)
