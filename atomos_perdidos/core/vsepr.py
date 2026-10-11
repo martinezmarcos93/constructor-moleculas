@@ -64,7 +64,9 @@ def classify_vsepr(structure: MoleculeStructure) -> dict:
     elif center.symbol == "S" and bond_order_sum == 6:
         lone_pairs = 0
 
-    domains = len(neighbors)
+    # La primera coordenada representa dominios electrónicos totales: enlaces + pares solitarios.
+    # Ej.: H2O = 2 enlaces + 2 pares solitarios -> (4, 2); NH3 -> (4, 1).
+    domains = len(neighbors) + lone_pairs
     shape = VSEPR_SHAPES.get((domains, lone_pairs))
     if not shape:
         return {
