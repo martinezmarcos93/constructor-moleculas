@@ -39,6 +39,13 @@ def test_carbon_valence_error():
     assert any(i.code == "valence" for i in s.validate())
 
 
+def test_hydrogen_cannot_have_double_bond():
+    s = make("H", "O")
+    s.add_bond("0", "1", 2)
+    assert not s.is_valid()
+    assert any(i.code == "valence" for i in s.validate())
+
+
 def test_disconnected_structure():
     s = make("H", "H", "O")
     s.add_bond("0", "1", 1)
