@@ -33,3 +33,22 @@ def test_carbon_dioxide_is_nonpolar_by_symmetry():
     result = molecular_polarity(make_carbon_dioxide())
     assert result["polar"] is False
     assert result["geometry"] == "lineal"
+
+
+def test_symmetric_tetrahedral_molecule_is_nonpolar():
+    structure = MoleculeStructure()
+    for atom_id, symbol in [("c", "C"), ("f1", "F"), ("f2", "F"), ("f3", "F"), ("f4", "F")]:
+        structure.add_atom(atom_id, symbol)
+    for atom_id in ("f1", "f2", "f3", "f4"):
+        structure.add_bond("c", atom_id)
+    result = molecular_polarity(structure)
+    assert result["supported"]
+    assert result["geometry"] == "tetraédrica"
+    assert result["polar"] is False
+
+
+def test_water_is_supported_and_polar_after_vector_sum():
+    result = molecular_polarity(make_water())
+    assert result["supported"]
+    assert result["polar"] is True
+    assert result["dipole_magnitude"] > 0.4
