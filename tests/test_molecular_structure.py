@@ -1,5 +1,5 @@
 from atomos_perdidos.core.molecular_structure import MoleculeStructure
-from vsepr import classify_vsepr
+from atomos_perdidos.core.vsepr import classify_vsepr
 
 
 def make(*atoms):
