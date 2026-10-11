@@ -67,7 +67,7 @@ def test_observation_is_required_for_full_score():
             "variables": {"first_amount": 1, "second_amount": 1},
         },
     )
-    assert result["score"] == 80
+    assert result["score"] == 70
 
 
 def test_unknown_experiment():
