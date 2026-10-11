@@ -11,6 +11,9 @@ from collections import Counter
 from typing import Iterable
 
 from atomos_perdidos.core.chemistry_rules import COMMON_VALENCES, IONIC_CHARGES, format_formula
+from atomos_perdidos.data.periodic_table import ELEMENTS
+
+_VALID_SYMBOLS = {element["symbol"] for element in ELEMENTS.values()}
 
 
 @dataclass(frozen=True)
@@ -43,9 +46,13 @@ class MoleculeStructure:
     bonds: list[Bond] = field(default_factory=list)
 
     def add_atom(self, atom_id: str, symbol: str) -> "MoleculeStructure":
+        if not isinstance(symbol, str):
+            raise ValueError("El símbolo del átomo debe ser texto.")
         symbol = symbol.strip().capitalize()
         if not symbol:
             raise ValueError("El símbolo del átomo no puede estar vacío.")
+        if symbol not in _VALID_SYMBOLS:
+            raise ValueError(f"Símbolo químico desconocido: {symbol}.")
         if atom_id in self.atoms:
             raise ValueError(f"Ya existe el átomo {atom_id}.")
         self.atoms[atom_id] = AtomNode(atom_id, symbol)
@@ -67,8 +74,7 @@ class MoleculeStructure:
         return self
 
     def bond_order_sum(self, atom_id: str) -> int:
-        return sum(b.order for b in self.bonds
-                   if b.kind == "covalent" and atom_id in (b.a, b.b))
+        return sum(b.order for b in self.bonds if b.kind == "covalent" and atom_id in (b.a, b.b))
 
     def neighbors(self, atom_id: str) -> list[str]:
         result = []
@@ -101,10 +107,7 @@ class MoleculeStructure:
             return [ValidationIssue("empty", "error", "La estructura no contiene átomos.")]
 
         if len(self.atoms) > 1 and not self.is_connected():
-            issues.append(ValidationIssue(
-                "disconnected", "error",
-                "La estructura tiene grupos de átomos desconectados."
-            ))
+            issues.append(ValidationIssue("disconnected", "error", "La estructura tiene grupos de átomos desconectados."))
 
         for atom in self.atoms.values():
             incident = [b for b in self.bonds if atom.id in (b.a, b.b)]
@@ -112,27 +115,21 @@ class MoleculeStructure:
                 continue
             valences = COMMON_VALENCES.get(atom.symbol)
             if not valences:
-                issues.append(ValidationIssue(
-                    "unknown_valence", "warning",
-                    f"No hay una regla didáctica de valencia para {atom.symbol}."
-                ))
+                issues.append(ValidationIssue("unknown_valence", "warning",
+                    f"No hay una regla didáctica de valencia para {atom.symbol}."))
                 continue
             used = self.bond_order_sum(atom.id)
             if used == 0 and len(self.atoms) > 1:
-                issues.append(ValidationIssue(
-                    "isolated_atom", "error",
-                    f"{atom.symbol} no participa de ningún enlace."
-                ))
+                issues.append(ValidationIssue("isolated_atom", "error", f"{atom.symbol} no participa de ningún enlace."))
             elif used not in valences:
                 max_valence = max(valences)
-                severity = "error" if used > max_valence else "warning"
-                issues.append(ValidationIssue(
-                    "valence",
-                    severity,
-                    f"{atom.symbol} usa {used} unidades de enlace; "
-                    f"las valencias didácticas disponibles son {valences}."
-                ))
-
+                # Para las valencias comunes cubiertas por este constructor,
+                # una valencia incompleta es una estructura incompleta y no se
+                # debe presentar como molecularmente válida. El motor sigue
+                # siendo didáctico y no deduce cargas formales.
+                severity = "error"
+                issues.append(ValidationIssue("valence", severity,
+                    f"{atom.symbol} usa {used} unidades de enlace; las valencias didácticas disponibles son {valences}."))
         return issues
 
     def is_valid(self) -> bool:
@@ -142,20 +139,13 @@ class MoleculeStructure:
         return {
             "formula": self.formula(),
             "atoms": [{"id": a.id, "symbol": a.symbol} for a in self.atoms.values()],
-            "bonds": [
-                {"a": b.a, "b": b.b, "order": b.order, "kind": b.kind}
-                for b in self.bonds
-            ],
+            "bonds": [{"a": b.a, "b": b.b, "order": b.order, "kind": b.kind} for b in self.bonds],
             "valid": self.is_valid(),
-            "issues": [
-                {"code": i.code, "severity": i.severity, "message": i.message}
-                for i in self.validate()
-            ],
+            "issues": [{"code": i.code, "severity": i.severity, "message": i.message} for i in self.validate()],
         }
 
 
 def structure_from_formula(symbols: Iterable[str], bonds: Iterable[tuple[int, int, int]]):
-    """Construye una estructura desde posiciones de una lista de símbolos."""
     structure = MoleculeStructure()
     normalized = [s.strip().capitalize() for s in symbols]
     for index, symbol in enumerate(normalized):

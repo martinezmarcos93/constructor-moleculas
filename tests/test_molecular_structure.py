@@ -1,5 +1,5 @@
 from atomos_perdidos.core.molecular_structure import MoleculeStructure
-from vsepr import classify_vsepr
+from atomos_perdidos.core.vsepr import classify_vsepr
 
 
 def make(*atoms):
@@ -35,6 +35,13 @@ def test_nitrogen_triple_bond():
 def test_carbon_valence_error():
     s = make("C", "H")
     s.add_bond("0", "1", 1)
+    assert not s.is_valid()
+    assert any(i.code == "valence" for i in s.validate())
+
+
+def test_hydrogen_cannot_have_double_bond():
+    s = make("H", "O")
+    s.add_bond("0", "1", 2)
     assert not s.is_valid()
     assert any(i.code == "valence" for i in s.validate())
 

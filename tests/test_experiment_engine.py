@@ -50,6 +50,7 @@ def test_molar_mass_experiment_identifies_co2_as_heavier():
             "prediction": "segunda_mayor",
             "observations": ["CO2 tiene mayor masa molar."],
             "formulas": ["H₂O", "CO₂"],
+            "variables": {"first_amount": 1, "second_amount": 1},
         },
     )
     assert result["completed"]
@@ -63,9 +64,10 @@ def test_observation_is_required_for_full_score():
         {
             "prediction": "segunda_mayor",
             "formulas": ["H₂O", "CO₂"],
+            "variables": {"first_amount": 1, "second_amount": 1},
         },
     )
-    assert result["score"] == 60
+    assert result["score"] == 70
 
 
 def test_unknown_experiment():

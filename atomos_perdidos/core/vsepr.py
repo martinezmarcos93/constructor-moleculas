@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from atomos_perdidos.core.molecular_structure import MoleculeStructure
 
-# Conteo de dominios electrónicos para los casos cubiertos por el juego.
-# Se prioriza una regla estable y explicable antes que una cobertura total.
 VSEPR_SHAPES = {
     (2, 0): ("lineal", "AX₂", 180),
     (3, 0): ("trigonal plana", "AX₃", 120),
@@ -16,12 +14,15 @@ VSEPR_SHAPES = {
     (6, 0): ("octaédrica", "AX₆", 90),
 }
 
+_VALENCE_ELECTRONS = {
+    "H": 1, "B": 3, "C": 4, "N": 5, "O": 6, "F": 7,
+    "P": 5, "S": 6, "Cl": 7, "Br": 7, "I": 7,
+}
+
 
 def _central_atom(structure: MoleculeStructure) -> str | None:
     if not structure.atoms:
         return None
-    # En estructuras pequeñas, el átomo con mayor conectividad es un centro
-    # razonable para el modo didáctico. En empate se prefiere el no-H.
     ranked = sorted(
         structure.atoms.values(),
         key=lambda a: (
@@ -43,38 +44,30 @@ def classify_vsepr(structure: MoleculeStructure) -> dict:
     neighbors = structure.neighbors(center_id)
     if not neighbors:
         return {"supported": False, "message": "El átomo central no tiene vecinos."}
+    if any(b.kind != "covalent" for b in structure.bonds if center_id in (b.a, b.b)):
+        return {"supported": False, "message": "VSEPR no se aplica a enlaces iónicos en este modo."}
 
-    # Para el nivel introductorio contamos enlaces múltiples como un dominio
-    # electrónico, no como varios dominios.
-    domains = len(neighbors)
-
-    # Electrones de valencia del átomo central y de sus vecinos.
-    # La heurística de pares solitarios funciona para los elementos del bloque
-    # principal cubiertos por las moléculas del juego.
-    valence = {
-        "H": 1, "B": 3, "C": 4, "N": 5, "O": 6,
-        "F": 7, "P": 5, "S": 6, "Cl": 7,
-    }
-    total = valence.get(center.symbol)
+    total = _VALENCE_ELECTRONS.get(center.symbol)
     if total is None:
         return {"supported": False, "message": f"VSEPR aún no cubre {center.symbol}."}
 
+    # Este modelo neutral simplificado cuenta los electrones no enlazantes que
+    # quedan en el átomo central; cada enlace covalente consume un electrón suyo.
     bond_order_sum = structure.bond_order_sum(center_id)
-    nonbonding_electrons = max(0, total - bond_order_sum * 1)
-    lone_pairs = nonbonding_electrons // 2
-    # Ajuste didáctico: los enlaces covalentes consumen un electrón del átomo
-    # central por orden de enlace; para moléculas neutras sencillas esto permite
-    # reconocer H2O, NH3, CH4, CO2, SO2 y SF6.
-    if center.symbol == "N" and bond_order_sum == 3:
+    lone_pairs = max(0, (total - bond_order_sum) // 2)
+    if center.symbol == "C" and bond_order_sum == 4:
+        lone_pairs = 0
+    elif center.symbol == "N" and bond_order_sum == 3:
         lone_pairs = 1
     elif center.symbol == "O" and bond_order_sum == 2:
         lone_pairs = 2
-    elif center.symbol == "C" and bond_order_sum == 4:
+    elif center.symbol == "S" and bond_order_sum == 6:
         lone_pairs = 0
-    elif center.symbol == "S" and bond_order_sum in (4, 6):
-        lone_pairs = 0 if bond_order_sum == 6 else 1
-    key = (domains, lone_pairs)
-    shape = VSEPR_SHAPES.get(key)
+
+    # La primera coordenada representa dominios electrónicos totales: enlaces + pares solitarios.
+    # Ej.: H2O = 2 enlaces + 2 pares solitarios -> (4, 2); NH3 -> (4, 1).
+    domains = len(neighbors) + lone_pairs
+    shape = VSEPR_SHAPES.get((domains, lone_pairs))
     if not shape:
         return {
             "supported": False,
