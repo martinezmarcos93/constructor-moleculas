@@ -11,10 +11,10 @@ def test_generated_missions_are_reproducible():
 def test_water_mission_can_be_completed_at_stoichiometric_ratio():
     mission = generate_mission("fabrica_agua", 1, "fixed")
     target = mission["target_moles"]
-    result = evaluate_mission(mission, {"H2": target * 2, "O2": target}, "O2")
+    result = evaluate_mission(mission, {"H2": target * 2, "O2": target}, "ninguno")
     assert result["completed"] is True
-    assert result["limiting_reagent"] == "O2"
-    assert result["score"] >= 90
+    assert result["stoichiometric_tie"] is True
+    assert result["score"] == 100
 
 
 def test_mission_rejects_excessive_waste():
@@ -35,3 +35,10 @@ def test_expanded_reaction_templates_generate():
         mission = generate_mission(template, 2, "coverage")
         assert mission["reactants"]
         assert mission["products"]
+
+
+def test_mission_rejects_non_finite_quantities():
+    import pytest
+    mission = generate_mission("fabrica_agua", 1, "finite")
+    with pytest.raises(ValueError, match="positiva y finita"):
+        evaluate_mission(mission, {"H2": float("inf"), "O2": 1})
