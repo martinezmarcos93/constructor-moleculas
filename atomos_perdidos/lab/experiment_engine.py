@@ -58,6 +58,11 @@ class ExperimentRun:
         self.prediction = value
         return {"prediction": value, "correct": value == self.spec.expected_prediction}
 
+    def observe(self, observation: str) -> None:
+        text = str(observation).strip()
+        if text:
+            self.observations.append(text)
+
     def set_variables(self, values: dict) -> None:
         if not isinstance(values, dict):
             raise ValueError("Las variables deben enviarse como un objeto.")
